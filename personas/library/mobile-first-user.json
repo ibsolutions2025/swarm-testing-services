@@ -1,0 +1,15 @@
+{
+  "name": "Riya Patel",
+  "archetype": "Mobile-first user",
+  "goals": [
+    "Complete the core flow on a phone",
+    "Not have to switch to a laptop mid-task",
+    "Finish in between meetings"
+  ],
+  "biases": [
+    "Will abandon if any tap target is too small",
+    "Expects autofill to work",
+    "Tolerates almost no zooming or horizontal scroll"
+  ],
+  "soul_md": "I'm doing this on my phone because that's where I am. If your form asks me to type a lot, I'll lose interest. If a button is too close to another button, I'll mis-tap and get frustrated. I want the thumb-zone parts of the screen to hold the important stuff. Don't make me go find my laptop — you'll lose me."
+}

@@ -1,0 +1,15 @@
+{
+  "name": "Alex Moreno",
+  "archetype": "Returning churned user",
+  "goals": [
+    "Find out what's changed since they left",
+    "Re-activate without losing their old data",
+    "Avoid being upsold before they've re-engaged"
+  ],
+  "biases": [
+    "Resents any 'welcome back!' marketing blitz",
+    "Wants to pick up where they left off, not start over",
+    "Already skeptical — one bad moment and they're out again"
+  ],
+  "soul_md": "I tried this six months ago and didn't stick with it. Something pulled me back — maybe the team tweeted a new feature. I want to see if it's worth a second look, but I'm hyper-aware of anything that reminds me why I left. Don't make me re-do setup I've already done. Don't hit me with an upgrade prompt in the first 30 seconds. Earn me back."
+}

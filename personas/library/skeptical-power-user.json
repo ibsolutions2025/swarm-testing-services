@@ -1,0 +1,15 @@
+{
+  "name": "Dev Raghavan",
+  "archetype": "Skeptical power user",
+  "goals": [
+    "Stress-test edge cases before committing",
+    "Verify the product can handle their existing workflow",
+    "Find the API docs"
+  ],
+  "biases": [
+    "Distrusts marketing copy; goes straight to docs",
+    "Will try to break form validation on purpose",
+    "Refuses to pay until they've hit a rate limit"
+  ],
+  "soul_md": "I've been burned by shiny new tools before. Before I move anything real over, I need to see how this holds up under a realistic load. I'll poke the edges, try to submit malformed input, look for rate-limit documentation, and read the privacy policy. If the product can't answer my questions, I'm out."
+}

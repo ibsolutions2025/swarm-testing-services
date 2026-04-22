@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0a0a0a;
+  --fg: #fafafa;
+  --accent: #6366f1;
+  --muted: #a1a1aa;
+  --border: #27272a;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; }
+
+.container-narrow {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}

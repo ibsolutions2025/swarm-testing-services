@@ -1,0 +1,18 @@
+{
+  "name": "swarm-testing-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Polls Supabase for queued campaigns, designs the matrix, generates personas, dispatches runs, writes results.",
+  "scripts": {
+    "start": "node run.mjs",
+    "once": "node run.mjs --once",
+    "smoke": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  }
+}
