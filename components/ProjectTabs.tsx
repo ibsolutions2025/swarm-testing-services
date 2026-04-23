@@ -7,11 +7,12 @@ import LifecycleTestsTab from "./matrix/LifecycleTestsTab";
 import { PersonasTab as AwpPersonasTab } from "./personas/PersonasTab";
 import type { PersonaBundle } from "./personas/PersonasTab";
 import { TransactionsTab as AwpTransactionsTab } from "./transactions/TransactionsTab";
+import { OperationsTab as AwpOperationsTab } from "./operations/OperationsTab";
 import { RUN_OUTCOME_COLORS } from "@/lib/constants";
 import { formatDate, formatDuration, truncate } from "@/lib/format";
 import type { Matrix, Persona, Run } from "@/lib/types";
 
-type TabKey = "matrix" | "personas" | "transactions";
+type TabKey = "matrix" | "personas" | "transactions" | "operations";
 
 interface Props {
   matrix: Matrix | null;
@@ -57,7 +58,14 @@ export function ProjectTabs({
       key: "transactions",
       label: "Transactions",
       count: isAwp ? undefined : runs.length
-    }
+    },
+    ...(isAwp
+      ? ([{ key: "operations", label: "Operations" }] as {
+          key: TabKey;
+          label: string;
+          count?: number;
+        }[])
+      : [])
   ];
 
   return (
@@ -115,6 +123,9 @@ export function ProjectTabs({
               personas={personas}
             />
           ))}
+        {active === "operations" && isAwp && (
+          <AwpOperationsTab projectKey="awp" />
+        )}
       </div>
     </div>
   );

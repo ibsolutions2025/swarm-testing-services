@@ -49,7 +49,10 @@ export async function GET(request: NextRequest) {
     if (since) {
       const sinceDate = new Date(since);
       if (!isNaN(sinceDate.getTime())) {
-        query = query.gte("started_at", sinceDate.toISOString());
+        // Filter on updated_at so the Operations live-timeline picks up
+        // rows whose steps were updated after the cursor, not just rows
+        // that were newly created.
+        query = query.gte("updated_at", sinceDate.toISOString());
       }
     }
     if (onchainJobId) {

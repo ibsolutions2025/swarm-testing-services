@@ -497,6 +497,7 @@ function TransactionDrawer({
               <span className={statusBadgeClass(result.status)}>
                 {result.status}
               </span>
+              <AuditStatusPill cellAudit={result.cell_audit} />
               <span className="font-mono text-xs text-[var(--muted)]">
                 {result.run_id}
               </span>
@@ -538,32 +539,45 @@ function TransactionDrawer({
             )}
           </section>
 
-          {/* Agent wallets */}
-          <section>
-            <h4 className="text-xs uppercase tracking-widest text-[var(--muted)]">
-              Agent Wallets
-            </h4>
-            {wallets.length === 0 ? (
-              <p className="mt-2 text-xs italic text-[var(--muted)]">
-                No agent wallets recorded.
-              </p>
-            ) : (
-              <ul className="mt-2 space-y-1 text-xs">
-                {wallets.map((w) => (
-                  <li key={w}>
-                    <a
-                      href={`${BASESCAN_BASE}/address/${w}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-blue-400 hover:text-blue-300 hover:underline"
-                    >
-                      {w} ↗
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          {/* Roles */}
+          <RolesSection wallets={result.wallets} />
+
+          {/* All wallets touched (catch-all, de-duped against roles) */}
+          {(() => {
+            const roleSet = new Set(collectRoleAddresses(result.wallets));
+            const extras = wallets.filter((w) => !roleSet.has(w.toLowerCase()));
+            return (
+              <section>
+                <h4 className="text-xs uppercase tracking-widest text-[var(--muted)]">
+                  All Wallets Touched
+                </h4>
+                {wallets.length === 0 ? (
+                  <p className="mt-2 text-xs italic text-[var(--muted)]">
+                    No agent wallets recorded.
+                  </p>
+                ) : extras.length === 0 ? (
+                  <p className="mt-2 text-xs italic text-[var(--muted)]">
+                    All labeled above.
+                  </p>
+                ) : (
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {extras.map((w) => (
+                      <li key={w}>
+                        <a
+                          href={`${BASESCAN_BASE}/address/${w}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-blue-400 hover:text-blue-300 hover:underline"
+                        >
+                          {w} ↗
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            );
+          })()}
 
           {/* Steps */}
           <section>
@@ -577,9 +591,12 @@ function TransactionDrawer({
             )}
             {result.steps && result.steps.length > 0 && (
               <ol className="mt-3 space-y-2">
-                {result.steps.map((s, i) => (
-                  <StepRow key={i} step={s} />
-                ))}
+                {result.steps.map((s, i) => {
+                  const audit = Array.isArray(result.step_audits)
+                    ? (result.step_audits as any[])[i]
+                    : undefined;
+                  return <StepRow key={i} step={s} audit={audit} />;
+                })}
               </ol>
             )}
           </section>
@@ -596,16 +613,22 @@ function TransactionDrawer({
             </section>
           )}
 
-          {/* cell_audit JSON */}
+          {/* cell_audit — terminal summary + JSON */}
           {result.cell_audit !== null && result.cell_audit !== undefined && (
-            <details className="rounded border border-[var(--border)] p-3">
-              <summary className="cursor-pointer text-xs uppercase tracking-widest text-[var(--muted)]">
+            <section className="rounded border border-[var(--border)] p-3">
+              <h4 className="text-xs uppercase tracking-widest text-[var(--muted)]">
                 Cell audit
-              </summary>
-              <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-zinc-950 p-3 font-mono text-[11px] text-zinc-300">
-                {JSON.stringify(result.cell_audit, null, 2)}
-              </pre>
-            </details>
+              </h4>
+              <CellAuditSummary cellAudit={result.cell_audit} />
+              <details className="mt-2">
+                <summary className="cursor-pointer text-[11px] text-[var(--muted)] hover:text-white">
+                  Raw JSON
+                </summary>
+                <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-zinc-950 p-3 font-mono text-[11px] text-zinc-300">
+                  {JSON.stringify(result.cell_audit, null, 2)}
+                </pre>
+              </details>
+            </section>
           )}
 
           {result.step_audits !== null && result.step_audits !== undefined && (
@@ -624,15 +647,32 @@ function TransactionDrawer({
   );
 }
 
-function StepRow({ step }: { step: LifecycleStep }) {
+function StepRow({
+  step,
+  audit
+}: {
+  step: LifecycleStep;
+  audit?: { onchain_confirmed?: boolean } | null;
+}) {
   const tx = (step.details as any)?.txHash;
   const blockNumber = (step.details as any)?.blockNumber;
+  const confirmed = audit?.onchain_confirmed;
   return (
     <li className="rounded border border-[var(--border)] p-2 text-xs">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="font-mono text-[var(--muted)]">#{step.step}</span>
         <span className="font-medium">{step.name}</span>
         <span className={statusBadgeClass(step.status)}>{step.status}</span>
+        {confirmed === true && (
+          <span className="rounded-full border border-emerald-400/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-300">
+            ⛓ confirmed
+          </span>
+        )}
+        {confirmed === false && (
+          <span className="rounded-full border border-red-400/40 bg-red-500/20 px-2 py-0.5 text-[10px] text-red-300">
+            ⚠ not confirmed
+          </span>
+        )}
         {typeof step.duration_ms === "number" && step.duration_ms > 0 && (
           <span className="text-[var(--muted)]">
             {step.duration_ms}ms
@@ -657,5 +697,122 @@ function StepRow({ step }: { step: LifecycleStep }) {
         </div>
       )}
     </li>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Drawer helpers (Track 2 + 3)
+// ──────────────────────────────────────────────────────────────
+
+function AuditStatusPill({ cellAudit }: { cellAudit: unknown }) {
+  const audited = cellAudit !== null && cellAudit !== undefined;
+  if (audited) {
+    return (
+      <span className="inline-flex rounded-full border border-emerald-400/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+        Audited ✓
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex rounded-full border border-zinc-500/30 bg-zinc-500/10 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
+      Audit pending
+    </span>
+  );
+}
+
+function collectRoleAddresses(wallets: LifecycleResult["wallets"]): string[] {
+  if (!wallets || typeof wallets !== "object") return [];
+  const out: string[] = [];
+  for (const [k, v] of Object.entries(wallets)) {
+    if (k === "actor_map") continue;
+    if (typeof v === "string" && v.startsWith("0x")) {
+      out.push(v.toLowerCase());
+    } else if (v && typeof v === "object" && "address" in (v as object)) {
+      const a = (v as any).address;
+      if (typeof a === "string") out.push(a.toLowerCase());
+    }
+  }
+  return out;
+}
+
+function RolesSection({ wallets }: { wallets: LifecycleResult["wallets"] }) {
+  if (!wallets || typeof wallets !== "object") return null;
+
+  const rows: Array<{ label: string; addr: string }> = [];
+  const pushAddr = (label: string, v: unknown) => {
+    if (typeof v === "string" && v.startsWith("0x")) {
+      rows.push({ label, addr: v });
+    } else if (v && typeof v === "object" && "address" in (v as object)) {
+      const a = (v as any).address;
+      if (typeof a === "string") rows.push({ label, addr: a });
+    }
+  };
+
+  // Canonical roles first (title-cased).
+  const CANON = ["poster", "worker", "validator", "employer"];
+  for (const k of CANON) {
+    if ((wallets as any)[k]) {
+      pushAddr(k.charAt(0).toUpperCase() + k.slice(1), (wallets as any)[k]);
+    }
+  }
+  // Any other string-valued role keys.
+  for (const [k, v] of Object.entries(wallets)) {
+    if (CANON.includes(k) || k === "actor_map") continue;
+    if (typeof v === "string" && v.startsWith("0x")) {
+      pushAddr(k.charAt(0).toUpperCase() + k.slice(1), v);
+    }
+  }
+
+  if (rows.length === 0) return null;
+
+  return (
+    <section>
+      <h4 className="text-xs uppercase tracking-widest text-[var(--muted)]">
+        Roles
+      </h4>
+      <ul className="mt-2 space-y-1 text-xs">
+        {rows.map((r, i) => (
+          <RoleRow key={`${r.label}-${i}`} label={r.label} addr={r.addr} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function RoleRow({ label, addr }: { label: string; addr: string }) {
+  return (
+    <li className="flex items-center gap-2">
+      <span className="w-20 text-[var(--muted)]">{label}:</span>
+      <a
+        href={`${BASESCAN_BASE}/address/${addr}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-mono text-blue-400 hover:text-blue-300 hover:underline"
+      >
+        {short(addr)} ↗
+      </a>
+    </li>
+  );
+}
+
+function CellAuditSummary({ cellAudit }: { cellAudit: unknown }) {
+  if (!cellAudit || typeof cellAudit !== "object") return null;
+  const a = cellAudit as Record<string, any>;
+  const terminal: string | undefined = a.terminal_status;
+  const confirmed: number | undefined = a.confirmed_steps ?? a.steps_confirmed;
+  const total: number | undefined = a.total_steps ?? a.steps_total;
+
+  if (!terminal) return null;
+  const parts: string[] = [];
+  if (typeof confirmed === "number" && typeof total === "number") {
+    parts.push(`${confirmed}/${total} steps confirmed on-chain`);
+  }
+  return (
+    <p className="mt-2 text-sm text-zinc-200">
+      Terminal: <span className="font-medium">{String(terminal)}</span>
+      {parts.length > 0 && (
+        <span className="text-[var(--muted)]"> ({parts.join(", ")})</span>
+      )}
+    </p>
   );
 }
