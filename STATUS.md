@@ -24,11 +24,13 @@
 | Dashboard + campaign create test | PENDING | Requires Isaiah to click the link in his inbox |
 | Email+password auth swap | DONE | /login replaced magic link; /api/auth/{signin,signup}; admin create-or-update for existing magic-link users; Suspense wrap for Next.js 14 prerender (commit cb0117d) |
 | Rich AWP /testing UX port spec | DONE | `CLAUDE-CODE-PROMPT.md` drafted 2026-04-22; NOW OUTDATED — read-from-AWP-Supabase pattern was reversed |
-| Phase 1 Matrix UX port (commit c23bdf7) | SHIPPED (REVERT IN PROGRESS) | LifecycleTestsTab.tsx + config.json landed, but wired to read AWP's Supabase — reversing 2026-04-23 |
-| **STS architectural pivot — 2026-04-23** | IN PROGRESS | STS owns swarm end-to-end; AWP is client #1. See `MIGRATION-PLAN.md`. Cash dispatched for DB migration + `sts-scanner` deploy. Claude Code reverting external-read wiring. |
-| STS `lifecycle_results` table + migration 0002 | DISPATCHED | Cash: `supabase/migrations/0002_sts_ownership.sql`; schema mirrors AWP's shape + project_id column |
-| STS scanner (`sts-scanner` on VPS) | DISPATCHED | Cash: lift `awp-lifecycle-scanner.mjs`, repoint at STS Supabase, pm2 start; AWP scanner untouched |
-| Claude Code Phase 1 revert | DISPATCHED | Delete `lib/awp-supabase.ts`; rewrite `/api/test-results/lifecycle` to read STS Supabase; remove AWP_* env vars |
+| Phase 1 Matrix UX port (commit c23bdf7) | DONE | LifecycleTestsTab.tsx + config.json landed. Wrong-direction wiring (reading AWP Supabase) reverted in commit ef6cde4. |
+| **STS architectural pivot — 2026-04-23** | **DONE** | STS owns swarm end-to-end; AWP is client #1. Scanner live on VPS pm2; `lifecycle_results` populating with 325+ rows; 7 agent dirs scrubbed + committed. Final commit `8202d43`. |
+| STS `lifecycle_results` table + migration 0002 | DONE | Table created via Supabase SQL editor (Mgmt API PAT was wrong-org). Columns: project_id, run_id, config_key, scenario_key, status, steps, wallets, agent_wallets, job_id, onchain_job_id, timestamps, step_audits, cell_audit. RLS: service_role + authenticated-SELECT on project_id='awp'. |
+| STS scanner (`sts-scanner` on VPS) | LIVE | pm2 id 16, 15-min loop, Alchemy raw-fetch prefetch + event-proof-only step push. 325 rows written on first clean pass. Env loaded via pm2 ecosystem.config.cjs (NOT .env dotfile — that path doesn't auto-load). |
+| Claude Code Phase 1 revert | DONE | `lib/awp-supabase.ts` deleted. `/api/test-results/lifecycle` reads STS Supabase with graceful-degrade on missing table (PGRST205 pattern). |
+| Agent dirs (awp-test-1..7) committed | DONE | Scrubbed — private keys stripped from IDENTITY.md, wallet addresses retained. Personas: Spark / Grind / Judge / Chaos / Scout / Flash / Bridge. Ready for Phase 2 Personas tab port. |
+| **Phase 2 Personas tab port** | READY TO FIRE | Claude Code prompt at `PHASE-2-PERSONAS-PROMPT.md`. Prerequisites (scanner + agent dirs) now satisfied — Isaiah to paste into Claude Code. |
 | AWP-side infra retirement | DEFERRED | After STS scanner proven in parallel for 48h: retire awp-conductor/auditor/matrix-audit tasks and `/testing` page |
 | AWP app strip-down to explorer | DEFERRED | Final phase: kill `/testing`, remove `lifecycle_results` from AWP Supabase dependency, make AWP read events directly from chain |
 | Orchestrator deploy to VPS | PENDING | pm2 service not yet up |

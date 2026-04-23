@@ -31,14 +31,15 @@ DATA MODEL:
     - openclaw.json tool allowlist pretty-printed
     - INSIDER-INFO AUDIT status (see below)
 
-PERSONA NAME MAPPING (hardcode for now, move to DB later):
-  awp-test-1  Spark   poster persona
-  awp-test-2  Grind   worker persona
-  awp-test-3  Judge   validator persona
-  awp-test-4  Chaos   edge-case poster
-  awp-test-5  Scout   discovery/browse
-  awp-test-6  Forge   high-volume worker
-  awp-test-7  Echo    cross-validator
+PERSONA NAME MAPPING (authoritative source: each IDENTITY.md heading —
+parse persona name from the file; fall back to this list if missing):
+  awp-test-1  Spark
+  awp-test-2  Grind
+  awp-test-3  Judge
+  awp-test-4  Chaos
+  awp-test-5  Scout
+  awp-test-6  Flash
+  awp-test-7  Bridge
 
 IMPLEMENTATION:
 
