@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ScenarioMatrix } from "./ScenarioMatrix";
 import { PersonaCard } from "./PersonaCard";
+import LifecycleTestsTab from "./matrix/LifecycleTestsTab";
 import { RUN_OUTCOME_COLORS } from "@/lib/constants";
 import { formatDate, formatDuration, truncate } from "@/lib/format";
 import type { Matrix, Persona, Run } from "@/lib/types";
@@ -14,6 +15,7 @@ interface Props {
   personas: Persona[];
   runs: Run[];
   status: string;
+  projectKey?: "awp";
 }
 
 /**
@@ -21,14 +23,25 @@ interface Props {
  * Three tabs — Matrix / Personas / Transactions — matching the AWP /testing
  * page that this product was spun out of.
  */
-export function ProjectTabs({ matrix, personas, runs, status }: Props) {
+export function ProjectTabs({
+  matrix,
+  personas,
+  runs,
+  status,
+  projectKey
+}: Props) {
   const [active, setActive] = useState<TabKey>("matrix");
+  const isAwp = projectKey === "awp";
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     {
       key: "matrix",
       label: "Matrix",
-      count: matrix ? matrix.rows.length * matrix.columns.length : 0
+      count: isAwp
+        ? undefined
+        : matrix
+        ? matrix.rows.length * matrix.columns.length
+        : 0
     },
     { key: "personas", label: "Personas", count: personas.length },
     { key: "transactions", label: "Transactions", count: runs.length }
@@ -64,9 +77,12 @@ export function ProjectTabs({ matrix, personas, runs, status }: Props) {
       </div>
 
       <div className="mt-8">
-        {active === "matrix" && (
-          <MatrixTab matrix={matrix} runs={runs} status={status} />
-        )}
+        {active === "matrix" &&
+          (isAwp ? (
+            <LifecycleTestsTab />
+          ) : (
+            <MatrixTab matrix={matrix} runs={runs} status={status} />
+          ))}
         {active === "personas" && <PersonasTab personas={personas} />}
         {active === "transactions" && (
           <TransactionsTab runs={runs} matrix={matrix} personas={personas} />

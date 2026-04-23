@@ -5,6 +5,7 @@ import { DashboardNav } from "@/components/DashboardNav";
 import { CampaignStatus } from "@/components/CampaignStatus";
 import { ProjectTabs } from "@/components/ProjectTabs";
 import { formatDate } from "@/lib/format";
+import { AWP_SEED_URL } from "@/lib/seed-awp";
 import type { Matrix, Persona, Run } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -130,6 +131,7 @@ export default async function ProjectDetailPage({
             personas={personasTyped}
             runs={runsTyped}
             status={campaign.status}
+            projectKey={campaign.url === AWP_SEED_URL ? "awp" : undefined}
           />
         </div>
       </section>

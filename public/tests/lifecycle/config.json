@@ -1,0 +1,2905 @@
+{
+  "configs": [
+    {
+      "key": "soft-open-single-open-open",
+      "label": "SOFT / Open / Single / Open Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-single-open-approved",
+      "label": "SOFT / Open / Single / Open Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-single-open-rating",
+      "label": "SOFT / Open / Single / Open Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "soft-open-single-approved-open",
+      "label": "SOFT / Open / Single / Approved Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-single-approved-approved",
+      "label": "SOFT / Open / Single / Approved Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-single-approved-rating",
+      "label": "SOFT / Open / Single / Approved Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "soft-open-single-rating-open",
+      "label": "SOFT / Open / Single / Rating Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-single-rating-approved",
+      "label": "SOFT / Open / Single / Rating Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-single-rating-rating",
+      "label": "SOFT / Open / Single / Rating Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "soft-open-multi-open-open",
+      "label": "SOFT / Open / Multi / Open Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-multi-open-approved",
+      "label": "SOFT / Open / Multi / Open Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-multi-open-rating",
+      "label": "SOFT / Open / Multi / Open Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "soft-open-multi-approved-open",
+      "label": "SOFT / Open / Multi / Approved Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-multi-approved-approved",
+      "label": "SOFT / Open / Multi / Approved Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-multi-approved-rating",
+      "label": "SOFT / Open / Multi / Approved Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "soft-open-multi-rating-open",
+      "label": "SOFT / Open / Multi / Rating Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-multi-rating-approved",
+      "label": "SOFT / Open / Multi / Rating Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-open-multi-rating-rating",
+      "label": "SOFT / Open / Multi / Rating Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "soft-timed-single-open-open",
+      "label": "SOFT / Timed / Single / Open Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-single-open-approved",
+      "label": "SOFT / Timed / Single / Open Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-single-open-rating",
+      "label": "SOFT / Timed / Single / Open Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "soft-timed-single-approved-open",
+      "label": "SOFT / Timed / Single / Approved Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-single-approved-approved",
+      "label": "SOFT / Timed / Single / Approved Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-single-approved-rating",
+      "label": "SOFT / Timed / Single / Approved Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "soft-timed-single-rating-open",
+      "label": "SOFT / Timed / Single / Rating Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-single-rating-approved",
+      "label": "SOFT / Timed / Single / Rating Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-single-rating-rating",
+      "label": "SOFT / Timed / Single / Rating Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "soft-timed-multi-open-open",
+      "label": "SOFT / Timed / Multi / Open Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-multi-open-approved",
+      "label": "SOFT / Timed / Multi / Open Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-multi-open-rating",
+      "label": "SOFT / Timed / Multi / Open Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "soft-timed-multi-approved-open",
+      "label": "SOFT / Timed / Multi / Approved Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-multi-approved-approved",
+      "label": "SOFT / Timed / Multi / Approved Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-multi-approved-rating",
+      "label": "SOFT / Timed / Multi / Approved Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "soft-timed-multi-rating-open",
+      "label": "SOFT / Timed / Multi / Rating Workers / Open Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-multi-rating-approved",
+      "label": "SOFT / Timed / Multi / Rating Workers / Approved Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0
+      }
+    },
+    {
+      "key": "soft-timed-multi-rating-rating",
+      "label": "SOFT / Timed / Multi / Rating Workers / Rating Validators",
+      "validationMode": 1,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 1,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 400
+      }
+    },
+    {
+      "key": "hard-open-single-open-na",
+      "label": "HARD / Open / Single / Open Workers / N/A",
+      "validationMode": 0,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hard-open-single-approved-na",
+      "label": "HARD / Open / Single / Approved Workers / N/A",
+      "validationMode": 0,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hard-open-single-rating-na",
+      "label": "HARD / Open / Single / Rating Workers / N/A",
+      "validationMode": 0,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hard-open-multi-open-na",
+      "label": "HARD / Open / Multi / Open Workers / N/A",
+      "validationMode": 0,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hard-open-multi-approved-na",
+      "label": "HARD / Open / Multi / Approved Workers / N/A",
+      "validationMode": 0,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hard-open-multi-rating-na",
+      "label": "HARD / Open / Multi / Rating Workers / N/A",
+      "validationMode": 0,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hard-timed-single-open-na",
+      "label": "HARD / Timed / Single / Open Workers / N/A",
+      "validationMode": 0,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hard-timed-single-approved-na",
+      "label": "HARD / Timed / Single / Approved Workers / N/A",
+      "validationMode": 0,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hard-timed-single-rating-na",
+      "label": "HARD / Timed / Single / Rating Workers / N/A",
+      "validationMode": 0,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hard-timed-multi-open-na",
+      "label": "HARD / Timed / Multi / Open Workers / N/A",
+      "validationMode": 0,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hard-timed-multi-approved-na",
+      "label": "HARD / Timed / Multi / Approved Workers / N/A",
+      "validationMode": 0,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hard-timed-multi-rating-na",
+      "label": "HARD / Timed / Multi / Rating Workers / N/A",
+      "validationMode": 0,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "na",
+      "jobParams": {
+        "validationMode": 0,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-open-single-open-open",
+      "label": "HARD_THEN_SOFT / Open / Single / Open Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-open-single-open-approved",
+      "label": "HARD_THEN_SOFT / Open / Single / Open Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-open-single-open-rating",
+      "label": "HARD_THEN_SOFT / Open / Single / Open Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-open-single-approved-open",
+      "label": "HARD_THEN_SOFT / Open / Single / Approved Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-open-single-approved-approved",
+      "label": "HARD_THEN_SOFT / Open / Single / Approved Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-open-single-approved-rating",
+      "label": "HARD_THEN_SOFT / Open / Single / Approved Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-open-single-rating-open",
+      "label": "HARD_THEN_SOFT / Open / Single / Rating Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-open-single-rating-approved",
+      "label": "HARD_THEN_SOFT / Open / Single / Rating Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-open-single-rating-rating",
+      "label": "HARD_THEN_SOFT / Open / Single / Rating Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-open-multi-open-open",
+      "label": "HARD_THEN_SOFT / Open / Multi / Open Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-open-multi-open-approved",
+      "label": "HARD_THEN_SOFT / Open / Multi / Open Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-open-multi-open-rating",
+      "label": "HARD_THEN_SOFT / Open / Multi / Open Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-open-multi-approved-open",
+      "label": "HARD_THEN_SOFT / Open / Multi / Approved Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-open-multi-approved-approved",
+      "label": "HARD_THEN_SOFT / Open / Multi / Approved Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-open-multi-approved-rating",
+      "label": "HARD_THEN_SOFT / Open / Multi / Approved Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-open-multi-rating-open",
+      "label": "HARD_THEN_SOFT / Open / Multi / Rating Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-open-multi-rating-approved",
+      "label": "HARD_THEN_SOFT / Open / Multi / Rating Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-open-multi-rating-rating",
+      "label": "HARD_THEN_SOFT / Open / Multi / Rating Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "open",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 30,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-timed-single-open-open",
+      "label": "HARD_THEN_SOFT / Timed / Single / Open Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-timed-single-open-approved",
+      "label": "HARD_THEN_SOFT / Timed / Single / Open Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-timed-single-open-rating",
+      "label": "HARD_THEN_SOFT / Timed / Single / Open Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "open",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-timed-single-approved-open",
+      "label": "HARD_THEN_SOFT / Timed / Single / Approved Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-timed-single-approved-approved",
+      "label": "HARD_THEN_SOFT / Timed / Single / Approved Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-timed-single-approved-rating",
+      "label": "HARD_THEN_SOFT / Timed / Single / Approved Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "approved",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-timed-single-rating-open",
+      "label": "HARD_THEN_SOFT / Timed / Single / Rating Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-timed-single-rating-approved",
+      "label": "HARD_THEN_SOFT / Timed / Single / Rating Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-timed-single-rating-rating",
+      "label": "HARD_THEN_SOFT / Timed / Single / Rating Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 0,
+      "workerAccess": "rating",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 0,
+        "submissionMode": 0,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-timed-multi-open-open",
+      "label": "HARD_THEN_SOFT / Timed / Multi / Open Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-timed-multi-open-approved",
+      "label": "HARD_THEN_SOFT / Timed / Multi / Open Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-timed-multi-open-rating",
+      "label": "HARD_THEN_SOFT / Timed / Multi / Open Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "open",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-timed-multi-approved-open",
+      "label": "HARD_THEN_SOFT / Timed / Multi / Approved Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-timed-multi-approved-approved",
+      "label": "HARD_THEN_SOFT / Timed / Multi / Approved Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 0,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-timed-multi-approved-rating",
+      "label": "HARD_THEN_SOFT / Timed / Multi / Approved Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "approved",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [
+          "0xTEST_WORKER_1",
+          "0xTEST_WORKER_2"
+        ],
+        "approvedValidators": [],
+        "minWorkerRating": 0,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    },
+    {
+      "key": "hardsift-timed-multi-rating-open",
+      "label": "HARD_THEN_SOFT / Timed / Multi / Rating Workers / Open Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "open",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmQ4Y8kNG6FgazaMKgkM4uPHV85gCq42Qb54BtXVWnq8dQ"
+      }
+    },
+    {
+      "key": "hardsift-timed-multi-rating-approved",
+      "label": "HARD_THEN_SOFT / Timed / Multi / Rating Workers / Approved Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "approved",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": false,
+        "approvedWorkers": [],
+        "approvedValidators": [
+          "0xTEST_VALIDATOR_1",
+          "0xTEST_VALIDATOR_2"
+        ],
+        "minWorkerRating": 400,
+        "minValidatorRating": 0,
+        "validationScriptCID": "QmfF1TCfUpjUv5eUXqbobndKGxbi8Sw4dFn4EfpLLsGgP8"
+      }
+    },
+    {
+      "key": "hardsift-timed-multi-rating-rating",
+      "label": "HARD_THEN_SOFT / Timed / Multi / Rating Workers / Rating Validators",
+      "validationMode": 2,
+      "deadline": "timed",
+      "submissionMode": 1,
+      "workerAccess": "rating",
+      "validatorAccess": "rating",
+      "jobParams": {
+        "validationMode": 2,
+        "submissionWindow": 100,
+        "submissionMode": 1,
+        "openValidation": true,
+        "approvedWorkers": [],
+        "approvedValidators": [],
+        "minWorkerRating": 400,
+        "minValidatorRating": 400,
+        "validationScriptCID": "QmeZ92q2fihCy45oUqm9Y9VjjppDPSKtkF4QDc3tAXPi9q"
+      }
+    }
+  ],
+  "scenarios": [
+    {
+      "key": "s01-happy-path",
+      "name": "Happy Path",
+      "description": "Simplest success flow: 1 worker, 1 validator, approved on first try",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Discover Job",
+          "actor": "worker",
+          "action": "get-jobs",
+          "expect": "job-visible"
+        },
+        {
+          "step": 3,
+          "name": "Submit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 4,
+          "name": "Claim Validator",
+          "actor": "validator",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 5,
+          "name": "Approve Submission",
+          "actor": "validator",
+          "action": "approve-submission",
+          "expect": "success"
+        },
+        {
+          "step": 6,
+          "name": "Leave Reviews",
+          "actor": "all",
+          "action": "submit-reviews",
+          "expect": "success"
+        }
+      ]
+    },
+    {
+      "key": "s02-validator-first",
+      "name": "Validator First",
+      "description": "Validator claims before any worker submits",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Claim Validator",
+          "actor": "validator",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Submit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 4,
+          "name": "Approve Submission",
+          "actor": "validator",
+          "action": "approve-submission",
+          "expect": "success"
+        },
+        {
+          "step": 5,
+          "name": "Leave Reviews",
+          "actor": "all",
+          "action": "submit-reviews",
+          "expect": "success"
+        }
+      ]
+    },
+    {
+      "key": "s03-competitive-workers",
+      "name": "Competitive Workers",
+      "description": "Multiple workers submit, one wins",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 3,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Worker 1 Submits",
+          "actor": "worker1",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Worker 2 Submits",
+          "actor": "worker2",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 4,
+          "name": "Claim Validator",
+          "actor": "validator",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 5,
+          "name": "Approve Submission",
+          "actor": "validator",
+          "action": "approve-submission",
+          "expect": "success"
+        },
+        {
+          "step": 6,
+          "name": "Leave Reviews",
+          "actor": "all",
+          "action": "submit-reviews",
+          "expect": "success"
+        }
+      ]
+    },
+    {
+      "key": "s04-rejection-loop",
+      "name": "Rejection Loop",
+      "description": "Worker rejected, resubmits, eventually approved",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Submit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Claim Validator",
+          "actor": "validator",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 4,
+          "name": "Reject Submission",
+          "actor": "validator",
+          "action": "reject-submission",
+          "expect": "success"
+        },
+        {
+          "step": 5,
+          "name": "Resubmit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 6,
+          "name": "Approve Resubmission",
+          "actor": "validator",
+          "action": "approve-submission",
+          "expect": "success"
+        },
+        {
+          "step": 7,
+          "name": "Leave Reviews",
+          "actor": "all",
+          "action": "submit-reviews",
+          "expect": "success"
+        }
+      ]
+    },
+    {
+      "key": "s05-total-rejection",
+      "name": "Total Rejection",
+      "description": "All submissions rejected, job stays open",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Submit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Claim Validator",
+          "actor": "validator",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 4,
+          "name": "Reject Submission",
+          "actor": "validator",
+          "action": "reject-submission",
+          "expect": "success"
+        },
+        {
+          "step": 5,
+          "name": "Verify Job Still Open",
+          "actor": "system",
+          "action": "check-job-status",
+          "expect": "open"
+        }
+      ]
+    },
+    {
+      "key": "s06-validator-waitlist",
+      "name": "Validator Waitlist",
+      "description": "Two validators claim, first serves, second on waitlist",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 2
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Claim Validator 1",
+          "actor": "validator1",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Claim Validator 2 (Waitlist)",
+          "actor": "validator2",
+          "action": "claim-validator",
+          "expect": "waitlisted"
+        },
+        {
+          "step": 4,
+          "name": "Submit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 5,
+          "name": "Approve by Validator 1",
+          "actor": "validator1",
+          "action": "approve-submission",
+          "expect": "success"
+        }
+      ]
+    },
+    {
+      "key": "s07-validator-rotation",
+      "name": "Validator Rotation",
+      "description": "First validator times out, second from waitlist takes over",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 2
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Claim Validator 1",
+          "actor": "validator1",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Claim Validator 2 (Waitlist)",
+          "actor": "validator2",
+          "action": "claim-validator",
+          "expect": "waitlisted"
+        },
+        {
+          "step": 4,
+          "name": "Submit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 5,
+          "name": "Validator 2 Takes Over",
+          "actor": "validator2",
+          "action": "claim-validator",
+          "expect": "promoted"
+        },
+        {
+          "step": 6,
+          "name": "Approve by Validator 2",
+          "actor": "validator2",
+          "action": "approve-submission",
+          "expect": "success"
+        }
+      ]
+    },
+    {
+      "key": "s08-worker-no-show",
+      "name": "Worker No-Show",
+      "description": "No one submits work",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 0,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        0,
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Verify Job Open",
+          "actor": "system",
+          "action": "check-job-status",
+          "expect": "open"
+        }
+      ]
+    },
+    {
+      "key": "s09-validator-no-show",
+      "name": "Validator No-Show",
+      "description": "Validator claims but never reviews",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Claim Validator",
+          "actor": "validator",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Submit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 4,
+          "name": "Verify Job Pending",
+          "actor": "system",
+          "action": "check-job-status",
+          "expect": "pending-validation"
+        }
+      ]
+    },
+    {
+      "key": "s10-job-cancelled",
+      "name": "Job Cancelled",
+      "description": "Employer cancels after worker submits",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        0,
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Submit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Cancel Job",
+          "actor": "employer",
+          "action": "cancel-job",
+          "expect": "success"
+        },
+        {
+          "step": 4,
+          "name": "Verify Job Cancelled",
+          "actor": "system",
+          "action": "check-job-status",
+          "expect": "cancelled"
+        }
+      ]
+    },
+    {
+      "key": "s11-deadline-expiry",
+      "name": "Deadline Expiry",
+      "description": "Timed job, deadline passes",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        0,
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Timed Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Wait for Deadline",
+          "actor": "system",
+          "action": "wait",
+          "expect": "deadline-passed",
+          "params": {
+            "duration": 100
+          }
+        },
+        {
+          "step": 3,
+          "name": "Verify Job Expired",
+          "actor": "system",
+          "action": "check-job-status",
+          "expect": "expired"
+        }
+      ]
+    },
+    {
+      "key": "s12-rating-gate-pass",
+      "name": "Rating Gate Pass",
+      "description": "Worker meets rating threshold",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": true,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Rating-Gated Job",
+          "actor": "employer",
+          "action": "create-job",
+          "params": {
+            "minWorkerRating": 400
+          },
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Submit Work (High Rating)",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Claim Validator",
+          "actor": "validator",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 4,
+          "name": "Approve Submission",
+          "actor": "validator",
+          "action": "approve-submission",
+          "expect": "success"
+        }
+      ]
+    },
+    {
+      "key": "s13-rating-gate-fail",
+      "name": "Rating Gate Fail",
+      "description": "Worker below rating threshold",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": true,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Rating-Gated Job",
+          "actor": "employer",
+          "action": "create-job",
+          "params": {
+            "minWorkerRating": 400
+          },
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Attempt Submit (Low Rating)",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "403-rating-gate"
+        },
+        {
+          "step": 3,
+          "name": "Verify Job Still Open",
+          "actor": "system",
+          "action": "check-job-status",
+          "expect": "open"
+        }
+      ]
+    },
+    {
+      "key": "s14-rating-gate-new-user",
+      "name": "Rating Gate New User",
+      "description": "Worker with 0 reviews on rating-gated job",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": true,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Rating-Gated Job",
+          "actor": "employer",
+          "action": "create-job",
+          "params": {
+            "minWorkerRating": 400
+          },
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "New Worker Submits",
+          "actor": "worker2",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Claim Validator",
+          "actor": "validator",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 4,
+          "name": "Approve Submission",
+          "actor": "validator",
+          "action": "approve-submission",
+          "expect": "success"
+        }
+      ]
+    },
+    {
+      "key": "s15-approved-not-approved",
+      "name": "Approved + Not Approved",
+      "description": "One approved worker, one non-approved try to submit",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 2,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Approved-Only Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Approved Worker Submits",
+          "actor": "worker1",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Unapproved Worker Blocked",
+          "actor": "worker2",
+          "action": "submit-work",
+          "expect": "403-not-approved"
+        },
+        {
+          "step": 4,
+          "name": "Claim Validator",
+          "actor": "validator",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 5,
+          "name": "Approve Submission",
+          "actor": "validator",
+          "action": "approve-submission",
+          "expect": "success"
+        }
+      ]
+    },
+    {
+      "key": "s16-multiple-submissions",
+      "name": "Multiple Submissions Same Worker",
+      "description": "Same worker submits multiple times (if allowed)",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        1,
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "First Submission",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Second Submission",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success-or-blocked"
+        },
+        {
+          "step": 4,
+          "name": "Claim Validator",
+          "actor": "validator",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 5,
+          "name": "Approve Submission",
+          "actor": "validator",
+          "action": "approve-submission",
+          "expect": "success"
+        }
+      ]
+    },
+    {
+      "key": "s17-hard-validation-auto",
+      "name": "Hard Validation Auto",
+      "description": "HARD_ONLY script runs automatically",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 0
+      },
+      "applicableValidationModes": [
+        0
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create HARD_ONLY Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Submit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Script Validation",
+          "actor": "system",
+          "action": "script-validation",
+          "expect": "script-passed"
+        },
+        {
+          "step": 4,
+          "name": "Auto-Approved",
+          "actor": "system",
+          "action": "approve-submission",
+          "expect": "auto-approved"
+        },
+        {
+          "step": 5,
+          "name": "Verify Completed",
+          "actor": "system",
+          "action": "check-job-status",
+          "expect": "completed"
+        }
+      ]
+    },
+    {
+      "key": "s18-hard-then-soft",
+      "name": "Hard Then Soft",
+      "description": "Script runs, then validator reviews",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 1
+      },
+      "applicableValidationModes": [
+        2
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": true,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create HARD_THEN_SOFT Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Submit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Script Validation",
+          "actor": "system",
+          "action": "script-validation",
+          "expect": "script-passed"
+        },
+        {
+          "step": 4,
+          "name": "Claim Validator",
+          "actor": "validator",
+          "action": "claim-validator",
+          "expect": "success"
+        },
+        {
+          "step": 5,
+          "name": "Soft Approve Submission",
+          "actor": "validator",
+          "action": "approve-submission",
+          "expect": "success"
+        }
+      ]
+    },
+    {
+      "key": "s19-hard-script-retry",
+      "name": "Hard Script Retry",
+      "description": "Script fails first submission, worker resubmits, script passes second attempt",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 0
+      },
+      "applicableValidationModes": [
+        0
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create HARD_ONLY Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Submit Work (First Attempt)",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Script Validation (Fails)",
+          "actor": "system",
+          "action": "script-validation",
+          "expect": "script-failed"
+        },
+        {
+          "step": 4,
+          "name": "Resubmit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 5,
+          "name": "Script Validation (Passes)",
+          "actor": "system",
+          "action": "script-validation",
+          "expect": "script-passed"
+        },
+        {
+          "step": 6,
+          "name": "Auto-Approved",
+          "actor": "system",
+          "action": "approve-submission",
+          "expect": "auto-approved"
+        },
+        {
+          "step": 7,
+          "name": "Verify Completed",
+          "actor": "system",
+          "action": "check-job-status",
+          "expect": "completed"
+        }
+      ]
+    },
+    {
+      "key": "s20-hard-script-fail",
+      "name": "Hard Script Fail",
+      "description": "Script rejects submission, no successful resubmission — job stays pending or expires",
+      "requiredWallets": {
+        "employers": 1,
+        "workers": 1,
+        "validators": 0
+      },
+      "applicableValidationModes": [
+        0
+      ],
+      "requiresRatingGate": false,
+      "requiresValidators": false,
+      "steps": [
+        {
+          "step": 1,
+          "name": "Create HARD_ONLY Job",
+          "actor": "employer",
+          "action": "create-job",
+          "expect": "success"
+        },
+        {
+          "step": 2,
+          "name": "Submit Work",
+          "actor": "worker",
+          "action": "submit-work",
+          "expect": "success"
+        },
+        {
+          "step": 3,
+          "name": "Script Validation (Fails)",
+          "actor": "system",
+          "action": "script-validation",
+          "expect": "script-failed"
+        },
+        {
+          "step": 4,
+          "name": "No Recovery",
+          "actor": "system",
+          "action": "check-job-status",
+          "expect": "pending-or-expired"
+        }
+      ]
+    }
+  ],
+  "naRules": [
+    {
+      "scenario": "s02-validator-first",
+      "condition": "validationMode === 0",
+      "reason": "HARD_ONLY has no validators"
+    },
+    {
+      "scenario": "s06-validator-waitlist",
+      "condition": "validationMode === 0",
+      "reason": "HARD_ONLY has no validators"
+    },
+    {
+      "scenario": "s07-validator-rotation",
+      "condition": "validationMode === 0",
+      "reason": "HARD_ONLY has no validators"
+    },
+    {
+      "scenario": "s09-validator-no-show",
+      "condition": "validationMode === 0",
+      "reason": "HARD_ONLY has no validators"
+    },
+    {
+      "scenario": "s12-rating-gate-pass",
+      "condition": "workerAccess !== \"rating\" && validatorAccess !== \"rating\"",
+      "reason": "Requires MIN_RATING access"
+    },
+    {
+      "scenario": "s13-rating-gate-fail",
+      "condition": "workerAccess !== \"rating\" && validatorAccess !== \"rating\"",
+      "reason": "Requires MIN_RATING access"
+    },
+    {
+      "scenario": "s14-rating-gate-new-user",
+      "condition": "workerAccess !== \"rating\" && validatorAccess !== \"rating\"",
+      "reason": "Requires MIN_RATING access"
+    },
+    {
+      "scenario": "s17-hard-validation-auto",
+      "condition": "validationMode !== 0",
+      "reason": "Only for HARD_ONLY configs"
+    },
+    {
+      "scenario": "s18-hard-then-soft",
+      "condition": "validationMode !== 2",
+      "reason": "Only for HARD_THEN_SOFT configs"
+    },
+    {
+      "scenario": "s19-hard-script-retry",
+      "condition": "validationMode !== 0",
+      "reason": "Only for HARD_ONLY configs"
+    },
+    {
+      "scenario": "s20-hard-script-fail",
+      "condition": "validationMode !== 0",
+      "reason": "Only for HARD_ONLY configs"
+    }
+  ],
+  "meta": {
+    "totalConfigs": 84,
+    "totalScenarios": 20,
+    "totalCells": 1680,
+    "naCellCount": 9
+  }
+}
