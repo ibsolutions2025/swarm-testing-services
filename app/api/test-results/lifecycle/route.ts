@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { awpSupabase } from "@/lib/awp-supabase";
+import { createAdminClient } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,23 +15,31 @@ export async function OPTIONS() {
 }
 
 /**
- * Read-through proxy to AWP's lifecycle_results for the AWP project card.
- * Mirrors agentwork-protocol/src/app/api/test-results/lifecycle/route.ts (GET only).
+ * GET /api/test-results/lifecycle?project=<slug>
+ *
+ * Reads from THIS repo's Supabase (lifecycle_results). STS owns the swarm
+ * end-to-end; AWP is tenant #1. Until Cash's migration 0002 lands and the
+ * sts-scanner on the VPS starts populating rows, this returns an empty
+ * matrix — which the LifecycleTestsTab handles cleanly.
+ *
+ * Mirrors the response shape of the former AWP route so the UI is agnostic.
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get("project") || "awp";
     const configKey = searchParams.get("config_key");
     const scenarioKey = searchParams.get("scenario_key");
     const status = searchParams.get("status");
-    const limit = parseInt(searchParams.get("limit") || "100", 10);
+    const limit = parseInt(searchParams.get("limit") || "5000", 10);
     const since = searchParams.get("since");
     const onchainJobId = searchParams.get("onchain_job_id");
 
-    let query = awpSupabase()
+    const admin = createAdminClient();
+    let query = admin
       .from("lifecycle_results")
-      .select("*, step_audits, cell_audit")
-      .not("config_key", "like", "config-job-%")
+      .select("*")
+      .eq("project_id", projectId)
       .order("started_at", { ascending: false })
       .limit(limit);
 
@@ -50,6 +58,26 @@ export async function GET(request: NextRequest) {
 
     const { data: results, error } = await query;
     if (error) {
+      // Table may not exist yet (migration 0002 is still in flight).
+      // Return an empty matrix instead of 500 so the UI renders cleanly.
+      const missingTable =
+        typeof error.message === "string" &&
+        /relation .* does not exist|lifecycle_results/i.test(error.message);
+      if (missingTable) {
+        return NextResponse.json(
+          {
+            results: [],
+            matrix: { configs: [], scenarios: [], cells: {} },
+            meta: {
+              count: 0,
+              limit,
+              projectId,
+              note: "lifecycle_results table not provisioned yet"
+            }
+          },
+          { headers: corsHeaders }
+        );
+      }
       return NextResponse.json(
         { error: error.message },
         { status: 500, headers: corsHeaders }
@@ -57,7 +85,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Normalize short scenario keys ("s03") to full keys ("s03-competitive-workers")
-    // so matrix lookup matches config.json.
+    // so matrix lookup matches public/tests/lifecycle/config.json.
     const SCENARIO_KEY_MAP: Record<string, string> = {
       s01: "s01-happy-path",
       s02: "s02-validator-first",
@@ -131,6 +159,7 @@ export async function GET(request: NextRequest) {
         meta: {
           count: results?.length || 0,
           limit,
+          projectId,
           filters: {
             config_key: configKey,
             scenario_key: scenarioKey,

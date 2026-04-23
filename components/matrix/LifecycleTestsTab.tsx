@@ -1,10 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-
-// AWP JobNFT address — public on-chain contract on Base Sepolia. Used to
-// construct BaseScan token deep-links for Job #N views.
-const AWP_JOBNFT = '0x267e831e6ac1e7c9e69bd99aec7f41e03a421198';
+import { AWP_JOBNFT } from '@/lib/awp-contracts';
 
 // Audit-related interfaces
 interface StepAudit {

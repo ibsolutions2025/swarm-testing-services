@@ -19,3 +19,8 @@ next-env.d.ts
 
 .vercel
 .env*.local
+
+# Local-only tool state and secrets stores
+.claude/
+secrets/
+github.env
