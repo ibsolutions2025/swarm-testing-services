@@ -22,6 +22,15 @@
 | "Campaign" → "Project" UI rename | DONE | Nav, list page, detail page, new-project form (DB table still `campaigns`) |
 | Deploy of layout+seed changes | DONE | commit 4da03ab, deploy dpl_aehj9QKYRdCkzE33tzc78KYbTNtJ READY on production 2026-04-22 |
 | Dashboard + campaign create test | PENDING | Requires Isaiah to click the link in his inbox |
+| Email+password auth swap | DONE | /login replaced magic link; /api/auth/{signin,signup}; admin create-or-update for existing magic-link users; Suspense wrap for Next.js 14 prerender (commit cb0117d) |
+| Rich AWP /testing UX port spec | DONE | `CLAUDE-CODE-PROMPT.md` drafted 2026-04-22; NOW OUTDATED — read-from-AWP-Supabase pattern was reversed |
+| Phase 1 Matrix UX port (commit c23bdf7) | SHIPPED (REVERT IN PROGRESS) | LifecycleTestsTab.tsx + config.json landed, but wired to read AWP's Supabase — reversing 2026-04-23 |
+| **STS architectural pivot — 2026-04-23** | IN PROGRESS | STS owns swarm end-to-end; AWP is client #1. See `MIGRATION-PLAN.md`. Cash dispatched for DB migration + `sts-scanner` deploy. Claude Code reverting external-read wiring. |
+| STS `lifecycle_results` table + migration 0002 | DISPATCHED | Cash: `supabase/migrations/0002_sts_ownership.sql`; schema mirrors AWP's shape + project_id column |
+| STS scanner (`sts-scanner` on VPS) | DISPATCHED | Cash: lift `awp-lifecycle-scanner.mjs`, repoint at STS Supabase, pm2 start; AWP scanner untouched |
+| Claude Code Phase 1 revert | DISPATCHED | Delete `lib/awp-supabase.ts`; rewrite `/api/test-results/lifecycle` to read STS Supabase; remove AWP_* env vars |
+| AWP-side infra retirement | DEFERRED | After STS scanner proven in parallel for 48h: retire awp-conductor/auditor/matrix-audit tasks and `/testing` page |
+| AWP app strip-down to explorer | DEFERRED | Final phase: kill `/testing`, remove `lifecycle_results` from AWP Supabase dependency, make AWP read events directly from chain |
 | Orchestrator deploy to VPS | PENDING | pm2 service not yet up |
 | `OPENROUTER_API_KEY` env var | PENDING | Reuse Isaiah's existing key |
 | `ORCHESTRATOR_WEBHOOK_URL` env var | PENDING | Set once orchestrator is on VPS |
