@@ -20,6 +20,7 @@
 | Standard project layout (Matrix/Personas/Transactions tabs) | DONE | `components/ProjectTabs.tsx` wraps all three; detail page refactored |
 | AWP auto-seed on first dashboard visit | DONE | `lib/seed-awp.ts` + `app/dashboard/layout.tsx`; seeds campaign + 4×5 matrix + 4 personas + 20 runs via service-role admin client |
 | "Campaign" → "Project" UI rename | DONE | Nav, list page, detail page, new-project form (DB table still `campaigns`) |
+| Deploy of layout+seed changes | DONE | commit 4da03ab, deploy dpl_aehj9QKYRdCkzE33tzc78KYbTNtJ READY on production 2026-04-22 |
 | Dashboard + campaign create test | PENDING | Requires Isaiah to click the link in his inbox |
 | Orchestrator deploy to VPS | PENDING | pm2 service not yet up |
 | `OPENROUTER_API_KEY` env var | PENDING | Reuse Isaiah's existing key |
