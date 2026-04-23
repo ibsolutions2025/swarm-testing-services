@@ -2288,9 +2288,9 @@
       ]
     },
     {
-      "key": "s10-job-cancelled",
-      "name": "Job Cancelled",
-      "description": "Employer cancels after worker submits",
+      "key": "s10-reject-all-cancel",
+      "name": "Reject-All Then Cancel",
+      "description": "Validator rejects all submissions, then poster cancels the job",
       "requiredWallets": {
         "employers": 1,
         "workers": 1,

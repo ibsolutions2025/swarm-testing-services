@@ -1,0 +1,359 @@
+#!/usr/bin/env node
+/**
+ * swarm-create.mjs — Scenario-targeted job creation for AWP.
+ *
+ * Replaces auto-cycle.mjs doCreateJob(). No LLM calls. Runs every 15 min via
+ * cron. Posts ONE new job per run, targeting an under-represented (config,
+ * scenario) cell.
+ *
+ * Logic:
+ *   1. Read SCENARIO_PRIORITY list (hard-coded; empty scenarios first)
+ *   2. For chosen scenario, pick a compatible config (valid constraints per
+ *      scenario — e.g., s08/s09 need timed, s16 needs allowResubmission, s12
+ *      needs rating access)
+ *   3. Round-robin the posting agent by cycle count
+ *   4. Build createJob params deterministically from config_key
+ *   5. Pick title/description from JOB_TEMPLATES
+ *   6. Post, then write intended-scenarios.json[jobId] = scenario
+ *
+ * Drain layer reads intended-scenarios.json and walks each job through the
+ * required event pattern for its target scenario.
+ */
+
+import { createPublicClient, createWalletClient, http, parseAbi } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { baseSepolia } from 'viem/chains';
+import { readFileSync, writeFileSync, existsSync, appendFileSync } from 'fs';
+
+const RPC       = process.env.AWP_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/xlgHg3R-suQ_fJKc3vN39';
+const JOB_NFT   = '0x267e831e6ac1e7c9e69bd99aec7f41e03a421198';
+const MOCK_USDC = '0x7ae8519d5fb7be655be9846553a595de8e00c209';
+const SCENARIOS_FILE = '/root/test-swarm/intended-scenarios.json';
+const CYCLE_FILE     = '/root/test-swarm/.create-cycle';
+const RUN_ID = new Date().toISOString();
+
+// ============================================================
+// Load agents
+// ============================================================
+const NAMES = { 1:'Spark', 2:'Grind', 3:'Judge', 4:'Chaos', 5:'Scout', 6:'Flash', 7:'Bridge' };
+const AGENTS = [];
+for (let i = 1; i <= 7; i++) {
+  const raw = readFileSync(`/root/test-swarm/agent-${i}/IDENTITY.md`, 'utf8');
+  const m = raw.match(/Private Key:\s*(0x[a-fA-F0-9]{64})/);
+  if (!m) throw new Error(`agent-${i}: no private key found`);
+  const account = privateKeyToAccount(m[1]);
+  AGENTS.push({ id: i, name: NAMES[i], account, address: account.address });
+}
+const ALL_ADDRESSES = AGENTS.map(a => a.address);
+
+// ============================================================
+// Cycle counter
+// ============================================================
+let cycleCount = 0;
+try { cycleCount = parseInt(readFileSync(CYCLE_FILE, 'utf8').trim()) || 0; } catch {}
+cycleCount++;
+writeFileSync(CYCLE_FILE, String(cycleCount));
+
+// ============================================================
+// Scenario priority — earlier = higher priority
+// Reflects the 2026-04-23 audit showing these empty/sparse
+// ============================================================
+const SCENARIO_PRIORITY = [
+  's12-rating-gate-pass',      // 0 rows
+  's02-validator-first',       // 0 rows
+  's10-reject-all-cancel',     // 0 rows
+  's16-multiple-submissions',  // 0 rows
+  's08-worker-no-show',        // 2 rows
+  's04-rejection-loop',        // 2 rows
+  's05-total-rejection',       // 19 rows
+  's09-validator-no-show',     // 14 rows
+  's06-validator-waitlist',    // 15 rows
+  's03-competitive-workers',   // 21 rows
+  's01-happy-path',            // 63 rows — fallback only
+];
+
+// ============================================================
+// Scenario → config constraints
+// Returns true if config_key is compatible with the target scenario
+// ============================================================
+function isScenarioCompatible(scenario, key) {
+  const [valMode, deadline, subMode, workerAccess, validatorAccess] = key.split('-');
+
+  switch (scenario) {
+    case 's01-happy-path':
+      return true; // any config
+    case 's02-validator-first':
+      // Need non-HARD (HARD_ONLY has no validator concept)
+      return valMode !== 'hard';
+    case 's03-competitive-workers':
+      // Need multi submission mode (allows multiple workers) + non-HARD
+      return subMode === 'multi' && valMode !== 'hard';
+    case 's04-rejection-loop':
+      // Need multi (resubmission) + non-HARD validator flow
+      return subMode === 'multi' && valMode !== 'hard';
+    case 's05-total-rejection':
+      // Need SOFT (allowRejectAll=true only when validationMode==1=SOFT)
+      return valMode === 'soft' && subMode === 'multi';
+    case 's06-validator-waitlist':
+      // Need non-HARD + openValidation preferred so multiple can claim
+      return valMode !== 'hard' && validatorAccess === 'open';
+    case 's08-worker-no-show':
+      // Need timed + any mode
+      return deadline === 'timed';
+    case 's09-validator-no-show':
+      // Need timed + non-HARD
+      return deadline === 'timed' && valMode !== 'hard';
+    case 's10-reject-all-cancel':
+      // Need SOFT + multi (needs rejectAll then cancel)
+      return valMode === 'soft' && subMode === 'multi';
+    case 's12-rating-gate-pass':
+      // Need rating on worker and/or validator access
+      return workerAccess === 'rating' || validatorAccess === 'rating';
+    case 's16-multiple-submissions':
+      // Need multi submission mode + non-HARD (validator approves one)
+      return subMode === 'multi' && valMode !== 'hard';
+    default:
+      return false;
+  }
+}
+
+// ============================================================
+// 84 config keys
+// ============================================================
+const ALL_CONFIG_KEYS = [
+  'soft-open-single-open-open','soft-open-single-open-approved','soft-open-single-open-rating',
+  'soft-open-single-approved-open','soft-open-single-approved-approved','soft-open-single-approved-rating',
+  'soft-open-single-rating-open','soft-open-single-rating-approved','soft-open-single-rating-rating',
+  'soft-open-multi-open-open','soft-open-multi-open-approved','soft-open-multi-open-rating',
+  'soft-open-multi-approved-open','soft-open-multi-approved-approved','soft-open-multi-approved-rating',
+  'soft-open-multi-rating-open','soft-open-multi-rating-approved','soft-open-multi-rating-rating',
+  'soft-timed-single-open-open','soft-timed-single-open-approved','soft-timed-single-open-rating',
+  'soft-timed-single-approved-open','soft-timed-single-approved-approved','soft-timed-single-approved-rating',
+  'soft-timed-single-rating-open','soft-timed-single-rating-approved','soft-timed-single-rating-rating',
+  'soft-timed-multi-open-open','soft-timed-multi-open-approved','soft-timed-multi-open-rating',
+  'soft-timed-multi-approved-open','soft-timed-multi-approved-approved','soft-timed-multi-approved-rating',
+  'soft-timed-multi-rating-open','soft-timed-multi-rating-approved','soft-timed-multi-rating-rating',
+  'hard-open-single-open-na','hard-open-single-approved-na','hard-open-single-rating-na',
+  'hard-open-multi-open-na','hard-open-multi-approved-na','hard-open-multi-rating-na',
+  'hard-timed-single-open-na','hard-timed-single-approved-na','hard-timed-single-rating-na',
+  'hard-timed-multi-open-na','hard-timed-multi-approved-na','hard-timed-multi-rating-na',
+  'hardsift-open-single-open-open','hardsift-open-single-open-approved','hardsift-open-single-open-rating',
+  'hardsift-open-single-approved-open','hardsift-open-single-approved-approved','hardsift-open-single-approved-rating',
+  'hardsift-open-single-rating-open','hardsift-open-single-rating-approved','hardsift-open-single-rating-rating',
+  'hardsift-open-multi-open-open','hardsift-open-multi-open-approved','hardsift-open-multi-open-rating',
+  'hardsift-open-multi-approved-open','hardsift-open-multi-approved-approved','hardsift-open-multi-approved-rating',
+  'hardsift-open-multi-rating-open','hardsift-open-multi-rating-approved','hardsift-open-multi-rating-rating',
+  'hardsift-timed-single-open-open','hardsift-timed-single-open-approved','hardsift-timed-single-open-rating',
+  'hardsift-timed-single-approved-open','hardsift-timed-single-approved-approved','hardsift-timed-single-approved-rating',
+  'hardsift-timed-single-rating-open','hardsift-timed-single-rating-approved','hardsift-timed-single-rating-rating',
+  'hardsift-timed-multi-open-open','hardsift-timed-multi-open-approved','hardsift-timed-multi-open-rating',
+  'hardsift-timed-multi-approved-open','hardsift-timed-multi-approved-approved','hardsift-timed-multi-approved-rating',
+  'hardsift-timed-multi-rating-open','hardsift-timed-multi-rating-approved','hardsift-timed-multi-rating-rating',
+];
+
+// ============================================================
+// Parse config_key → createJob params
+// ============================================================
+function configKeyToParams(key, poster) {
+  const [valMode, deadline, subMode, workerAccess, validatorAccess] = key.split('-');
+  const otherAgents = ALL_ADDRESSES.filter(a => a.toLowerCase() !== poster.address.toLowerCase());
+
+  const validationMode = valMode === 'soft' ? 1 : valMode === 'hard' ? 0 : 2;
+  const submissionMode = subMode === 'multi' ? 1 : 0;
+  const submissionWindow = submissionMode === 1 ? 7200 : 0; // 2h for timed
+
+  let approvedWorkers = [];
+  let minWorkerRating = 0;
+  if (workerAccess === 'approved') approvedWorkers = otherAgents.slice(0, 3);
+  else if (workerAccess === 'rating') minWorkerRating = 400;
+
+  let approvedValidators = [];
+  let openValidation = true;
+  let minValidatorRating = 0;
+  if (validatorAccess === 'approved') {
+    openValidation = false;
+    approvedValidators = otherAgents.slice(3, 6);
+  } else if (validatorAccess === 'rating') {
+    minValidatorRating = 400;
+  }
+
+  const validationScriptCID = (validationMode === 0 || validationMode === 2)
+    ? 'QmTestValidationScript_AWP_v1' : '';
+
+  return {
+    validationMode, submissionMode, submissionWindow,
+    approvedWorkers, approvedValidators, openValidation,
+    minWorkerRating, minValidatorRating,
+    validationScriptCID,
+    allowResubmission: submissionMode === 1,
+    allowRejectAll: validationMode === 1 && submissionMode === 1,
+  };
+}
+
+// ============================================================
+// Job templates
+// ============================================================
+const JOB_TEMPLATES = [
+  { title: 'Smart Contract Gas-Optimization Review', desc: 'Review a contract for gas-saving opportunities. Flag inefficient loops and storage usage.' },
+  { title: 'API Rate-Limiting Design', desc: 'Design a token-bucket rate limiter for an API gateway. Provide pseudocode and config.' },
+  { title: 'Data Pipeline Back-Pressure Analysis', desc: 'Analyze back-pressure handling in a Kafka→PostgreSQL pipeline. Recommend tuning.' },
+  { title: 'OAuth2 Login Flow Audit', desc: 'Walk through an OAuth2 authorization-code flow and flag any token-leak risks.' },
+  { title: 'Unit Test Scaffold for Utility Library', desc: 'Scaffold Jest unit tests for a date-manipulation utility library.' },
+  { title: 'DevOps Runbook for Blue-Green Deploy', desc: 'Write a runbook for zero-downtime blue-green deployment of a Node.js service.' },
+  { title: 'Performance Profile of React App', desc: 'Profile a React SPA and report the top 3 render bottlenecks with remediation.' },
+  { title: 'Database Index Strategy Review', desc: 'Review a PostgreSQL schema and recommend indexes for a given query pattern.' },
+  { title: 'Kubernetes Resource-Request Audit', desc: 'Audit Kubernetes pod resource requests and limits for a web tier.' },
+  { title: 'Observability Dashboard Spec', desc: 'Specify Grafana panels for a REST API dashboard: latency, error rate, throughput.' },
+];
+
+// ============================================================
+// Clients
+// ============================================================
+const pub = createPublicClient({ chain: baseSepolia, transport: http(RPC) });
+const walletFor = (agent) =>
+  createWalletClient({ account: agent.account, chain: baseSepolia, transport: http(RPC) });
+
+const USDC_ABI = parseAbi([
+  'function balanceOf(address) view returns (uint256)',
+  'function approve(address spender, uint256 value) returns (bool)',
+  'function allowance(address owner, address spender) view returns (uint256)',
+]);
+
+const JOB_ABI = parseAbi([
+  'function createJob(string title, string description, string requirementsJson, uint256 reward, bool openValidation, address[] approvedValidators, uint256 minWorkerRating, uint256 minValidatorRating, uint8 validationMode, uint8 submissionMode, uint256 submissionWindow, string validationScriptCID, bool requireSecurityAudit, string securityAuditTemplate, bool allowResubmission, bool allowRejectAll, address[] approvedWorkers, string validationInstructions) returns (uint256)',
+]);
+
+// ============================================================
+// Main
+// ============================================================
+
+// 1. Pick a target scenario — round-robin through priority list so we hit
+//    each empty scenario first a few times, then cycle the rest.
+const scenarioIdx = cycleCount % SCENARIO_PRIORITY.length;
+const targetScenario = SCENARIO_PRIORITY[scenarioIdx];
+console.log(`[${RUN_ID}] cycle=${cycleCount} targeting scenario=${targetScenario}`);
+
+// 2. Pick a compatible config. Prefer configs not yet heavily used.
+const compatible = ALL_CONFIG_KEYS.filter(k => isScenarioCompatible(targetScenario, k));
+if (compatible.length === 0) {
+  console.log(`[${RUN_ID}] no configs compatible with ${targetScenario} — falling back to s01`);
+  process.exit(0);
+}
+// Pick deterministically based on cycleCount for spread
+const targetConfig = compatible[cycleCount % compatible.length];
+console.log(`[${RUN_ID}] config=${targetConfig}`);
+
+// 3. Pick posting agent (round-robin)
+const poster = AGENTS[cycleCount % AGENTS.length];
+console.log(`[${RUN_ID}] poster=${poster.name} (${poster.address})`);
+
+// 4. Build params
+const params = configKeyToParams(targetConfig, poster);
+const tpl = JOB_TEMPLATES[cycleCount % JOB_TEMPLATES.length];
+
+// 5. Requirements JSON (embed minRating here since contract only has one setter)
+const requirementsJson = JSON.stringify({
+  minWorkerRating: params.minWorkerRating,
+  minValidatorRating: params.minValidatorRating,
+  scenario: targetScenario,
+  config: targetConfig,
+});
+
+// 6. Check USDC balance + approve
+const rewardUSDC = 5n * 10n ** 6n; // 5 USDC (6 decimals)
+const bal = await pub.readContract({ address: MOCK_USDC, abi: USDC_ABI, functionName: 'balanceOf', args: [poster.address] });
+if (bal < rewardUSDC) {
+  console.log(`[${RUN_ID}] poster ${poster.name} has insufficient USDC (${bal}) — needs ${rewardUSDC}. Skipping.`);
+  process.exit(0);
+}
+const allow = await pub.readContract({ address: MOCK_USDC, abi: USDC_ABI, functionName: 'allowance', args: [poster.address, JOB_NFT] });
+if (allow < rewardUSDC) {
+  console.log(`[${RUN_ID}] approving USDC...`);
+  const pwal = walletFor(poster);
+  const approveHash = await pwal.writeContract({
+    address: MOCK_USDC, abi: USDC_ABI, functionName: 'approve',
+    args: [JOB_NFT, 10_000n * 10n ** 6n], gas: 100_000n,
+  });
+  await pub.waitForTransactionReceipt({ hash: approveHash, timeout: 60_000 });
+  console.log(`[${RUN_ID}] approve tx=${approveHash}`);
+}
+
+// 7. createJob
+// V14 signature from JobNFT ABI:
+//   createJob(title, description, requirementsJson, reward, openValidation,
+//     approvedValidators, minWorkerRating, minValidatorRating, validationMode,
+//     submissionMode, submissionWindow, validationScriptCID, requireSecurityAudit,
+//     securityAuditTemplate, allowResubmission, allowRejectAll, approvedWorkers,
+//     validationInstructions)
+const args = [
+  tpl.title,
+  tpl.desc,
+  requirementsJson,
+  rewardUSDC,
+  params.openValidation,
+  params.approvedValidators,
+  BigInt(params.minWorkerRating),
+  BigInt(params.minValidatorRating),
+  params.validationMode,
+  params.submissionMode,
+  BigInt(params.submissionWindow),
+  params.validationScriptCID,
+  false,                        // requireSecurityAudit
+  '',                           // securityAuditTemplate
+  params.allowResubmission,
+  params.allowRejectAll,
+  params.approvedWorkers,
+  '',                           // validationInstructions
+];
+
+let createdJobId = null;
+try {
+  const pwal = walletFor(poster);
+  const hash = await pwal.writeContract({
+    address: JOB_NFT, abi: JOB_ABI, functionName: 'createJob', args, gas: 3_000_000n,
+  });
+  const rcpt = await pub.waitForTransactionReceipt({ hash, timeout: 90_000 });
+  console.log(`[${RUN_ID}] createJob tx=${hash} status=${rcpt.status} block=${rcpt.blockNumber}`);
+  if (rcpt.status !== 'success') {
+    console.log(`[${RUN_ID}] createJob reverted`);
+    process.exit(1);
+  }
+  // Parse the JobCreated event from logs to get the token id
+  const JOB_CREATED_TOPIC = '0x'; // we'll find from logs
+  for (const log of rcpt.logs) {
+    if (log.address.toLowerCase() === JOB_NFT.toLowerCase() && log.topics.length >= 2) {
+      // First indexed param is jobId (uint256) in JobCreated event
+      const topic = log.topics[1];
+      if (topic && topic !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+        createdJobId = parseInt(topic, 16);
+        break;
+      }
+    }
+  }
+  if (!createdJobId) {
+    // Fallback: read jobCount and assume latest
+    const jc = await pub.readContract({
+      address: JOB_NFT, abi: parseAbi(['function jobCount() view returns (uint256)']),
+      functionName: 'jobCount', args: [],
+    });
+    createdJobId = Number(jc) - 1;
+  }
+  console.log(`[${RUN_ID}] created jobId=${createdJobId}`);
+} catch (e) {
+  console.log(`[${RUN_ID}] createJob FAILED: ${e.shortMessage || e.message?.slice(0, 300)}`);
+  process.exit(1);
+}
+
+// 8. Annotate intended-scenarios.json
+let scenarios = {};
+try {
+  if (existsSync(SCENARIOS_FILE)) scenarios = JSON.parse(readFileSync(SCENARIOS_FILE, 'utf8'));
+} catch {}
+scenarios[String(createdJobId)] = targetScenario;
+writeFileSync(SCENARIOS_FILE, JSON.stringify(scenarios, null, 2));
+
+appendFileSync('/var/log/awp-create.log',
+  `[${RUN_ID}] cycle=${cycleCount} jobId=${createdJobId} config=${targetConfig} scenario=${targetScenario} poster=${poster.name}\n`);
+
+console.log(`[${RUN_ID}] DONE — annotated job #${createdJobId} as ${targetScenario}`);
+process.exit(0);

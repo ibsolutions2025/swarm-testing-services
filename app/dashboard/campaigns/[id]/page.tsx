@@ -98,7 +98,8 @@ export default async function ProjectDetailPage({
             <p className="mt-2 text-[var(--muted)]">{campaign.description}</p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <CampaignStatus status={campaign.status} />
+            {/* AWP is a living project — force status to "running" so the stub DB row doesn't mislabel it as Completed */}
+            <CampaignStatus status={isAwp ? "running" : campaign.status} />
             <span className="text-xs text-[var(--muted)]">
               Started {formatDate(campaign.created_at)}
             </span>
@@ -112,7 +113,8 @@ export default async function ProjectDetailPage({
           </div>
         )}
 
-        {runsTyped.length > 0 && (
+        {/* Hide the stub-run summary for AWP — Transactions tab has the real counters */}
+        {runsTyped.length > 0 && !isAwp && (
           <div className="mt-10 grid grid-cols-5 gap-3">
             <SummaryCard label="Total" value={summary.total} />
             <SummaryCard

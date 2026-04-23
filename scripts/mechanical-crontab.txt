@@ -1,0 +1,6 @@
+0 0 * * * find /opt/bitmind-subnet/logs -name *.log -mtime +7 -delete
+*/5 * * * * /opt/bitmind-subnet/health_monitor.sh
+*/15 * * * * cd /root/test-swarm && /usr/bin/node awp-lifecycle-scanner.mjs >> /var/log/awp-lifecycle-scanner.cron.log 2>&1
+# AWP mechanical swarm
+*/5 * * * * /usr/bin/node /root/test-swarm/swarm-drain.mjs >> /var/log/awp-drain.log 2>&1
+*/15 * * * * /usr/bin/node /root/test-swarm/swarm-create.mjs >> /var/log/awp-create.log 2>&1
