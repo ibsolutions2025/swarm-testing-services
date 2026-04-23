@@ -6,6 +6,7 @@ import { PersonaCard } from "./PersonaCard";
 import LifecycleTestsTab from "./matrix/LifecycleTestsTab";
 import { PersonasTab as AwpPersonasTab } from "./personas/PersonasTab";
 import type { PersonaBundle } from "./personas/PersonasTab";
+import { TransactionsTab as AwpTransactionsTab } from "./transactions/TransactionsTab";
 import { RUN_OUTCOME_COLORS } from "@/lib/constants";
 import { formatDate, formatDuration, truncate } from "@/lib/format";
 import type { Matrix, Persona, Run } from "@/lib/types";
@@ -52,7 +53,11 @@ export function ProjectTabs({
       label: "Personas",
       count: isAwp ? awpPersonas?.length ?? 0 : personas.length
     },
-    { key: "transactions", label: "Transactions", count: runs.length }
+    {
+      key: "transactions",
+      label: "Transactions",
+      count: isAwp ? undefined : runs.length
+    }
   ];
 
   return (
@@ -100,9 +105,16 @@ export function ProjectTabs({
           ) : (
             <PersonasTab personas={personas} />
           ))}
-        {active === "transactions" && (
-          <TransactionsTab runs={runs} matrix={matrix} personas={personas} />
-        )}
+        {active === "transactions" &&
+          (isAwp ? (
+            <AwpTransactionsTab projectKey="awp" />
+          ) : (
+            <StubTransactionsTab
+              runs={runs}
+              matrix={matrix}
+              personas={personas}
+            />
+          ))}
       </div>
     </div>
   );
@@ -162,7 +174,7 @@ function PersonasTab({ personas }: { personas: Persona[] }) {
   );
 }
 
-function TransactionsTab({
+function StubTransactionsTab({
   runs,
   matrix,
   personas

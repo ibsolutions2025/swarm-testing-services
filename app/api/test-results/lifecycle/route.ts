@@ -73,7 +73,8 @@ export async function GET(request: NextRequest) {
               limit,
               projectId,
               note: "lifecycle_results table not provisioned yet"
-            }
+            },
+            table_missing: true
           },
           { headers: corsHeaders }
         );

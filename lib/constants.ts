@@ -21,12 +21,28 @@ export const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
 };
 
 export const RUN_OUTCOME_COLORS: Record<string, string> = {
+  // Original MVP `runs.outcome` enum (pass/fail/partial/skipped/error).
   pass: "bg-emerald-500/30 border-emerald-400/50",
   fail: "bg-red-500/30 border-red-400/50",
   partial: "bg-amber-500/30 border-amber-400/50",
   skipped: "bg-zinc-500/20 border-zinc-400/30",
-  error: "bg-fuchsia-500/30 border-fuchsia-400/50"
+  error: "bg-fuchsia-500/30 border-fuchsia-400/50",
+  // STS `lifecycle_results.status` enum (passed/failed/running + shared).
+  passed: "bg-emerald-500/30 border-emerald-400/50",
+  failed: "bg-red-500/30 border-red-400/50",
+  running: "bg-blue-500/30 border-blue-400/50"
 };
+
+// Ordered list for consistent filter UI and aggregate counters.
+export const LIFECYCLE_STATUSES = [
+  "passed",
+  "failed",
+  "partial",
+  "running",
+  "skipped",
+  "error"
+] as const;
+export type LifecycleStatus = (typeof LIFECYCLE_STATUSES)[number];
 
 // MVP sizing caps — keep cheap until billing is wired.
 export const MAX_ROWS_PER_MATRIX = 5;
