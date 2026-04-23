@@ -6,6 +6,9 @@ import { CampaignStatus } from "@/components/CampaignStatus";
 import { ProjectTabs } from "@/components/ProjectTabs";
 import { formatDate } from "@/lib/format";
 import { AWP_SEED_URL } from "@/lib/seed-awp";
+import { getAwpAgents } from "@/lib/agents-fs";
+import { auditPersona } from "@/lib/insider-audit";
+import type { PersonaBundle } from "@/components/personas/PersonasTab";
 import type { Matrix, Persona, Run } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +59,16 @@ export default async function ProjectDetailPage({
   const matrixTyped = (matrix ?? null) as Matrix | null;
   const personasTyped = (personas ?? []) as Persona[];
   const runsTyped = (runs ?? []) as Run[];
+
+  const isAwp = campaign.url === AWP_SEED_URL;
+  let awpPersonas: PersonaBundle[] | undefined;
+  if (isAwp) {
+    const agents = await getAwpAgents();
+    awpPersonas = agents.map((agent) => ({
+      agent,
+      audit: auditPersona({ soul_md: agent.soul_md, user_md: agent.user_md })
+    }));
+  }
 
   const summary = {
     total: runsTyped.length,
@@ -131,7 +144,8 @@ export default async function ProjectDetailPage({
             personas={personasTyped}
             runs={runsTyped}
             status={campaign.status}
-            projectKey={campaign.url === AWP_SEED_URL ? "awp" : undefined}
+            projectKey={isAwp ? "awp" : undefined}
+            awpPersonas={awpPersonas}
           />
         </div>
       </section>

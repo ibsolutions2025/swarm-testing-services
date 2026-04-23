@@ -4,6 +4,8 @@ import { useState } from "react";
 import { ScenarioMatrix } from "./ScenarioMatrix";
 import { PersonaCard } from "./PersonaCard";
 import LifecycleTestsTab from "./matrix/LifecycleTestsTab";
+import { PersonasTab as AwpPersonasTab } from "./personas/PersonasTab";
+import type { PersonaBundle } from "./personas/PersonasTab";
 import { RUN_OUTCOME_COLORS } from "@/lib/constants";
 import { formatDate, formatDuration, truncate } from "@/lib/format";
 import type { Matrix, Persona, Run } from "@/lib/types";
@@ -16,6 +18,7 @@ interface Props {
   runs: Run[];
   status: string;
   projectKey?: "awp";
+  awpPersonas?: PersonaBundle[];
 }
 
 /**
@@ -28,7 +31,8 @@ export function ProjectTabs({
   personas,
   runs,
   status,
-  projectKey
+  projectKey,
+  awpPersonas
 }: Props) {
   const [active, setActive] = useState<TabKey>("matrix");
   const isAwp = projectKey === "awp";
@@ -43,7 +47,11 @@ export function ProjectTabs({
         ? matrix.rows.length * matrix.columns.length
         : 0
     },
-    { key: "personas", label: "Personas", count: personas.length },
+    {
+      key: "personas",
+      label: "Personas",
+      count: isAwp ? awpPersonas?.length ?? 0 : personas.length
+    },
     { key: "transactions", label: "Transactions", count: runs.length }
   ];
 
@@ -83,7 +91,15 @@ export function ProjectTabs({
           ) : (
             <MatrixTab matrix={matrix} runs={runs} status={status} />
           ))}
-        {active === "personas" && <PersonasTab personas={personas} />}
+        {active === "personas" &&
+          (isAwp ? (
+            <AwpPersonasTab
+              personas={awpPersonas ?? []}
+              projectKey="awp"
+            />
+          ) : (
+            <PersonasTab personas={personas} />
+          ))}
         {active === "transactions" && (
           <TransactionsTab runs={runs} matrix={matrix} personas={personas} />
         )}
