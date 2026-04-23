@@ -28,6 +28,9 @@ import { runAgent } from './swarm-agent-runner.mjs';
 
 const STARTED_AT = Date.now();
 
+const CYCLE_ID  = `create-${new Date().toISOString()}`;
+const COMPONENT = 'swarm-create';
+
 const STS_SUPABASE_URL =
   process.env.STS_SUPABASE_URL || 'https://ldxcenmhazelrnrlxuwq.supabase.co';
 const STS_SUPABASE_KEY = process.env.STS_SUPABASE_KEY;
@@ -61,6 +64,36 @@ async function emitHeartbeat(component, actions_count, note, extraMeta = {}) {
     }
   } catch (e) {
     console.log(`[heartbeat] error: ${e.message?.slice(0, 200)}`);
+  }
+}
+
+async function emitOrchestrationEvent(fields) {
+  const url = (process.env.STS_SUPABASE_URL || 'https://ldxcenmhazelrnrlxuwq.supabase.co')
+    + '/rest/v1/orchestration_events';
+  const key = process.env.STS_SUPABASE_KEY;
+  if (!key) return;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': key,
+        'Authorization': `Bearer ${key}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        project_id: 'awp',
+        cycle_id: CYCLE_ID,
+        source: COMPONENT,
+        ...fields,
+      }),
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      console.log(`[orch-emit] failed ${res.status}: ${t.slice(0,200)}`);
+    }
+  } catch (e) {
+    console.log(`[orch-emit] error: ${e.message?.slice(0,200)}`);
   }
 }
 
@@ -299,6 +332,14 @@ console.log(`[${RUN_ID}] config=${targetConfig}`);
 const poster = AGENTS[cycleCount % AGENTS.length];
 console.log(`[${RUN_ID}] poster=${poster.name} (${poster.address})`);
 
+// Emit scan row — scenario + config selection decision
+await emitOrchestrationEvent({
+  event_type: 'scan',
+  persona: poster.name,
+  reasoning: `selecting next job to post: scenario=${targetScenario}, config=${targetConfig}`,
+  meta: { target_scenario: targetScenario, target_config: targetConfig, poster: poster.name, cycle: cycleCount },
+});
+
 // 4. Build params + ask the poster agent to name the job in their own voice
 const params = configKeyToParams(targetConfig, poster);
 const constraints = configKeyToConstraints(targetConfig);
@@ -315,6 +356,15 @@ if (agentOut.fell_back) {
   console.log(`[${RUN_ID}] agent-runner fell back on create for ${poster.name}`);
 }
 
+// Emit pre-create dispatch row
+await emitOrchestrationEvent({
+  event_type: 'dispatch',
+  persona: poster.name,
+  directive: `Post a new job with these constraints: ${constraints.join(' / ')}. Reward: 5 USDC.`,
+  reasoning: 'round-robin poster + matrix-gap target',
+  meta: { constraints, target_config: targetConfig, target_scenario: targetScenario, runner_fallback: !!agentOut.fell_back },
+});
+
 // 5. Requirements JSON (embed minRating here since contract only has one setter)
 const requirementsJson = JSON.stringify({
   minWorkerRating: params.minWorkerRating,
@@ -328,6 +378,12 @@ const rewardUSDC = 5n * 10n ** 6n; // 5 USDC (6 decimals)
 const bal = await pub.readContract({ address: MOCK_USDC, abi: USDC_ABI, functionName: 'balanceOf', args: [poster.address] });
 if (bal < rewardUSDC) {
   console.log(`[${RUN_ID}] poster ${poster.name} has insufficient USDC (${bal}) — needs ${rewardUSDC}. Skipping.`);
+  await emitOrchestrationEvent({
+    event_type: 'error',
+    persona: poster.name,
+    reasoning: `insufficient USDC balance: ${bal} < ${rewardUSDC}`,
+    meta: { action: 'balance-check', balance: String(bal) },
+  });
   process.exit(0);
 }
 const allow = await pub.readContract({ address: MOCK_USDC, abi: USDC_ABI, functionName: 'allowance', args: [poster.address, JOB_NFT] });
@@ -380,6 +436,12 @@ try {
   console.log(`[${RUN_ID}] createJob tx=${hash} status=${rcpt.status} block=${rcpt.blockNumber}`);
   if (rcpt.status !== 'success') {
     console.log(`[${RUN_ID}] createJob reverted`);
+    await emitOrchestrationEvent({
+      event_type: 'error',
+      persona: poster.name,
+      reasoning: 'createJob tx reverted',
+      meta: { action: 'createJob', tx_hash: hash },
+    });
     process.exit(1);
   }
   // Parse the JobCreated event from logs to get the token id
@@ -403,8 +465,26 @@ try {
     createdJobId = Number(jc) - 1;
   }
   console.log(`[${RUN_ID}] created jobId=${createdJobId}`);
+
+  // Emit post-create dispatch row with tx_hash + job_id
+  await emitOrchestrationEvent({
+    event_type: 'dispatch',
+    persona: poster.name,
+    job_id: createdJobId,
+    directive: `Posted job #${createdJobId}: "${tpl.title}"`,
+    reasoning: 'create tx landed',
+    tx_hash: hash,
+    meta: { action: 'createJob', target_config: targetConfig, target_scenario: targetScenario, receipt_status: rcpt.status, block: Number(rcpt.blockNumber), agent_fell_back: !!agentOut.fell_back },
+  });
+
 } catch (e) {
   console.log(`[${RUN_ID}] createJob FAILED: ${e.shortMessage || e.message?.slice(0, 300)}`);
+  await emitOrchestrationEvent({
+    event_type: 'error',
+    persona: poster.name,
+    reasoning: `createJob failed: ${e.shortMessage || e.message?.slice(0,200)}`,
+    meta: { action: 'createJob', error: String(e.shortMessage || e.message).slice(0,500) },
+  });
   process.exit(1);
 }
 

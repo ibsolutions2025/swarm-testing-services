@@ -34,6 +34,9 @@ import { runAgent } from './swarm-agent-runner.mjs';
 const STARTED_AT = Date.now();
 let errorCount = 0;
 
+const CYCLE_ID  = `drain-${new Date().toISOString()}`;
+const COMPONENT = 'swarm-drain';
+
 const STS_SUPABASE_URL =
   process.env.STS_SUPABASE_URL || 'https://ldxcenmhazelrnrlxuwq.supabase.co';
 const STS_SUPABASE_KEY = process.env.STS_SUPABASE_KEY;
@@ -68,6 +71,36 @@ async function emitHeartbeat(component, actions_count, note, extraMeta = {}) {
     }
   } catch (e) {
     console.log(`[heartbeat] error: ${e.message?.slice(0, 200)}`);
+  }
+}
+
+async function emitOrchestrationEvent(fields) {
+  const url = (process.env.STS_SUPABASE_URL || 'https://ldxcenmhazelrnrlxuwq.supabase.co')
+    + '/rest/v1/orchestration_events';
+  const key = process.env.STS_SUPABASE_KEY;
+  if (!key) return;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': key,
+        'Authorization': `Bearer ${key}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        project_id: 'awp',
+        cycle_id: CYCLE_ID,
+        source: COMPONENT,
+        ...fields,
+      }),
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      console.log(`[orch-emit] failed ${res.status}: ${t.slice(0,200)}`);
+    }
+  } catch (e) {
+    console.log(`[orch-emit] error: ${e.message?.slice(0,200)}`);
   }
 }
 
@@ -335,10 +368,26 @@ async function progressJob(jobId) {
       try {
         const r = await writeTx(agent, 'claimJobAsValidator', [BigInt(jobId)], 400_000n);
         console.log(`  ${summary} | CLAIM by ${agent.name} tx=${r.hash} status=${r.status}`);
+        await emitOrchestrationEvent({
+          event_type: 'dispatch',
+          persona: agent.name,
+          job_id: jobId,
+          directive: 'Claim this job as validator — you will be responsible for deciding if submitted work meets the spec',
+          reasoning: 'eligible validator (no activeValidator set, persona not poster)',
+          tx_hash: r.hash,
+          meta: { action: 'claim', receipt_status: r.status, block: Number(r.block) },
+        });
         actionsTaken++;
         return 'claim';
       } catch (e) {
         console.log(`  ${summary} | CLAIM fail ${agent.name}: ${e.shortMessage || e.message?.slice(0,120)}`);
+        await emitOrchestrationEvent({
+          event_type: 'error',
+          persona: agent.name,
+          job_id: jobId,
+          reasoning: `claim failed: ${e.shortMessage || e.message?.slice(0,120)}`,
+          meta: { action: 'claim', error: String(e.shortMessage || e.message).slice(0,500) },
+        });
       }
     }
   }
@@ -348,6 +397,11 @@ async function progressJob(jobId) {
     // s08-worker-no-show: intentionally don't submit; let it time out via finalize.
     if (scenario === 's08-worker-no-show') {
       console.log(`  ${summary} | SKIP-SUBMIT (s08 intent)`);
+      await emitOrchestrationEvent({
+        event_type: 'skip',
+        job_id: jobId,
+        reasoning: `intentionally skipping submit (scenario annotation = ${scenario})`,
+      });
       return null;
     }
     for (const agent of pickAgent(jobId, 'submit')) {
@@ -359,11 +413,27 @@ async function progressJob(jobId) {
       try {
         const r = await writeTx(agent, 'submitWork', [BigInt(jobId), url, ZERO_B32], 1_500_000n);
         console.log(`  ${summary} | SUBMIT by ${agent.name} tx=${r.hash} status=${r.status}${out.fell_back ? ' [runner-fallback]' : ''}`);
+        await emitOrchestrationEvent({
+          event_type: 'dispatch',
+          persona: agent.name,
+          job_id: jobId,
+          directive: `Submit work deliverable: ${url.slice(0, 80)}`,
+          reasoning: 'eligible worker, no prior submission, validator set (or s09)',
+          tx_hash: r.hash,
+          meta: { action: 'submit', receipt_status: r.status, block: Number(r.block), runner_fallback: !!out.fell_back },
+        });
         actionsTaken++;
         return 'submit';
       } catch (e) {
         errorCount++;
         console.log(`  ${summary} | SUBMIT fail ${agent.name}: ${e.shortMessage || e.message?.slice(0,120)}`);
+        await emitOrchestrationEvent({
+          event_type: 'error',
+          persona: agent.name,
+          job_id: jobId,
+          reasoning: `submit failed: ${e.shortMessage || e.message?.slice(0,120)}`,
+          meta: { action: 'submit', error: String(e.shortMessage || e.message).slice(0,500) },
+        });
       }
     }
   }
@@ -388,11 +458,27 @@ async function progressJob(jobId) {
       try {
         const r = await writeTx(agent, 'submitWork', [BigInt(jobId), url, ZERO_B32], 1_500_000n);
         console.log(`  ${summary} | SECOND-SUBMIT by ${agent.name} tx=${r.hash}${out.fell_back ? ' [runner-fallback]' : ''}`);
+        await emitOrchestrationEvent({
+          event_type: 'dispatch',
+          persona: agent.name,
+          job_id: jobId,
+          directive: `Submit a competing work deliverable: ${url.slice(0, 80)}`,
+          reasoning: 'multi-submission slot open, agent has not yet submitted',
+          tx_hash: r.hash,
+          meta: { action: 'second-submit', receipt_status: r.status, block: Number(r.block), runner_fallback: !!out.fell_back },
+        });
         actionsTaken++;
         return 'second-submit';
       } catch (e) {
         errorCount++;
         console.log(`  ${summary} | SECOND-SUBMIT fail ${agent.name}: ${e.shortMessage || e.message?.slice(0,120)}`);
+        await emitOrchestrationEvent({
+          event_type: 'error',
+          persona: agent.name,
+          job_id: jobId,
+          reasoning: `second-submit failed: ${e.shortMessage || e.message?.slice(0,120)}`,
+          meta: { action: 'second-submit', error: String(e.shortMessage || e.message).slice(0,500) },
+        });
       }
     }
   }
@@ -441,11 +527,27 @@ async function progressJob(jobId) {
       try {
         const r = await writeTx(validator, 'rejectSubmission', [BigInt(jobId), BigInt(pendingIdx)], 800_000n);
         console.log(`  ${summary} | REJECT by ${validator.name} sub=${pendingIdx} score=${out.score} tx=${r.hash}${out.fell_back ? ' [runner-fallback]' : ''}`);
+        await emitOrchestrationEvent({
+          event_type: 'dispatch',
+          persona: validator.name,
+          job_id: jobId,
+          directive: `Reject submission #${pendingIdx} — work did not meet the spec`,
+          reasoning: `validator decision: reject (score=${out.score})`,
+          tx_hash: r.hash,
+          meta: { action: 'reject', sub_index: pendingIdx, score: out.score, receipt_status: r.status, block: Number(r.block), runner_fallback: !!out.fell_back },
+        });
         actionsTaken++;
         return 'reject';
       } catch (e) {
         errorCount++;
         console.log(`  ${summary} | REJECT fail: ${e.shortMessage || e.message?.slice(0,120)}`);
+        await emitOrchestrationEvent({
+          event_type: 'error',
+          persona: validator.name,
+          job_id: jobId,
+          reasoning: `reject failed: ${e.shortMessage || e.message?.slice(0,120)}`,
+          meta: { action: 'reject', error: String(e.shortMessage || e.message).slice(0,500) },
+        });
       }
     } else {
       // approve — pass the agent's own comment as on-chain feedback
@@ -456,11 +558,27 @@ async function progressJob(jobId) {
       try {
         const r = await writeTx(validator, 'approveSubmission', [BigInt(jobId), BigInt(pendingIdx), '0x', feedback], 1_500_000n);
         console.log(`  ${summary} | APPROVE by ${validator.name} sub=${pendingIdx} score=${out.score} tx=${r.hash}${out.fell_back ? ' [runner-fallback]' : ''}`);
+        await emitOrchestrationEvent({
+          event_type: 'dispatch',
+          persona: validator.name,
+          job_id: jobId,
+          directive: `Approve submission #${pendingIdx} — work meets the spec`,
+          reasoning: `validator decision: approve (score=${out.score})`,
+          tx_hash: r.hash,
+          meta: { action: 'approve', sub_index: pendingIdx, score: out.score, receipt_status: r.status, block: Number(r.block), runner_fallback: !!out.fell_back },
+        });
         actionsTaken++;
         return 'approve';
       } catch (e) {
         errorCount++;
         console.log(`  ${summary} | APPROVE fail: ${e.shortMessage || e.message?.slice(0,120)}`);
+        await emitOrchestrationEvent({
+          event_type: 'error',
+          persona: validator.name,
+          job_id: jobId,
+          reasoning: `approve failed: ${e.shortMessage || e.message?.slice(0,120)}`,
+          meta: { action: 'approve', error: String(e.shortMessage || e.message).slice(0,500) },
+        });
       }
     }
   }
@@ -482,6 +600,15 @@ async function progressJob(jobId) {
           try {
             const r = await writeTx(validator, 'rejectAllSubmissions', [BigInt(jobId)], 1_000_000n);
             console.log(`  ${summary} | REJECT-ALL by ${validator.name} tx=${r.hash}`);
+            await emitOrchestrationEvent({
+              event_type: 'dispatch',
+              persona: validator.name,
+              job_id: jobId,
+              directive: 'Reject all submissions — none met the spec; job returns to open state',
+              reasoning: 'all submissions rejected, allowRejectAll=true',
+              tx_hash: r.hash,
+              meta: { action: 'reject-all', receipt_status: r.status, block: Number(r.block) },
+            });
             actionsTaken++;
             // s10 follow-up: cancel
             if (scenario === 's10-reject-all-cancel' && actionsTaken < MAX_ACTIONS) {
@@ -492,9 +619,25 @@ async function progressJob(jobId) {
                   try {
                     const rc = await writeTx(poster, 'cancelJob', [BigInt(jobId)], 1_000_000n);
                     console.log(`  ${summary} | CANCEL by ${poster.name} tx=${rc.hash}`);
+                    await emitOrchestrationEvent({
+                      event_type: 'dispatch',
+                      persona: poster.name,
+                      job_id: jobId,
+                      directive: 'Cancel this job after all submissions were rejected',
+                      reasoning: 's10-reject-all-cancel scenario follow-up',
+                      tx_hash: rc.hash,
+                      meta: { action: 'cancel', receipt_status: rc.status, block: Number(rc.block) },
+                    });
                     actionsTaken++;
                   } catch (e) {
                     console.log(`  ${summary} | CANCEL fail: ${e.shortMessage || e.message?.slice(0,120)}`);
+                    await emitOrchestrationEvent({
+                      event_type: 'error',
+                      persona: poster.name,
+                      job_id: jobId,
+                      reasoning: `cancel failed: ${e.shortMessage || e.message?.slice(0,120)}`,
+                      meta: { action: 'cancel', error: String(e.shortMessage || e.message).slice(0,500) },
+                    });
                   }
                 }
               }
@@ -502,6 +645,13 @@ async function progressJob(jobId) {
             return 'reject-all';
           } catch (e) {
             console.log(`  ${summary} | REJECT-ALL fail: ${e.shortMessage || e.message?.slice(0,120)}`);
+            await emitOrchestrationEvent({
+              event_type: 'error',
+              persona: validator.name,
+              job_id: jobId,
+              reasoning: `reject-all failed: ${e.shortMessage || e.message?.slice(0,120)}`,
+              meta: { action: 'reject-all', error: String(e.shortMessage || e.message).slice(0,500) },
+            });
           }
         }
       }
@@ -518,10 +668,26 @@ async function progressJob(jobId) {
         try {
           const r = await writeTx(poster, 'finalizeTimedJob', [BigInt(jobId)], 1_500_000n);
           console.log(`  ${summary} | FINALIZE by ${poster.name} tx=${r.hash}`);
+          await emitOrchestrationEvent({
+            event_type: 'dispatch',
+            persona: poster.name,
+            job_id: jobId,
+            directive: 'Finalize this timed job — submission window has closed',
+            reasoning: 'submissionDeadline passed, timed multi-submission job',
+            tx_hash: r.hash,
+            meta: { action: 'finalize', receipt_status: r.status, block: Number(r.block) },
+          });
           actionsTaken++;
           return 'finalize';
         } catch (e) {
           console.log(`  ${summary} | FINALIZE fail: ${e.shortMessage || e.message?.slice(0,120)}`);
+          await emitOrchestrationEvent({
+            event_type: 'error',
+            persona: poster.name,
+            job_id: jobId,
+            reasoning: `finalize failed: ${e.shortMessage || e.message?.slice(0,120)}`,
+            meta: { action: 'finalize', error: String(e.shortMessage || e.message).slice(0,500) },
+          });
         }
       }
     }
@@ -570,9 +736,25 @@ async function reviewSweep(lowJobId, highJobId) {
         try {
           const r = await writeRG(agent, 'submitReview', [BigInt(jid), reviewee, 5, `solid-work,job${jid}`], 1_500_000n);
           console.log(`  [review] ${agent.name} → ${reviewee.slice(0,10)} on job#${jid} tx=${r.hash}`);
+          await emitOrchestrationEvent({
+            event_type: 'dispatch',
+            persona: agent.name,
+            job_id: jid,
+            directive: `Submit peer review for ${reviewee.slice(0,10)} on job #${jid}`,
+            reasoning: 'review required by ReviewGate contract',
+            tx_hash: r.hash,
+            meta: { action: 'review', reviewee: reviewee.slice(0,10), score: 5 },
+          });
           actionsTaken++;
         } catch (e) {
           console.log(`  [review] ${agent.name} → ${reviewee.slice(0,10)} FAIL: ${e.shortMessage || e.message?.slice(0,120)}`);
+          await emitOrchestrationEvent({
+            event_type: 'error',
+            persona: agent.name,
+            job_id: jid,
+            reasoning: `review failed: ${e.shortMessage || e.message?.slice(0,120)}`,
+            meta: { action: 'review', reviewee: reviewee.slice(0,10), error: String(e.shortMessage || e.message).slice(0,500) },
+          });
         }
       }
       // Stop scanning if pending count cleared
@@ -590,6 +772,12 @@ const highJob = totalJobs; // jobCount returns NEXT id; most recent is jobCount 
 const lowJob = Math.max(1, highJob - SCAN_WINDOW);
 
 console.log(`[${RUN_ID}] Scanning jobs ${lowJob}..${highJob - 1} (total on-chain: ${totalJobs})`);
+
+await emitOrchestrationEvent({
+  event_type: 'scan',
+  reasoning: `scanned last ${SCAN_WINDOW} jobs`,
+  meta: { total_on_chain: totalJobs, scan_low: lowJob, scan_high: highJob - 1 },
+});
 
 for (let jid = highJob - 1; jid >= lowJob; jid--) {
   if (actionsTaken >= MAX_ACTIONS) break;
