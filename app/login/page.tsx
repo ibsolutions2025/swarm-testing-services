@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type Mode = "signin" | "signup";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginShell>Loading…</LoginShell>}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params?.get("next") ?? "/dashboard";
@@ -174,6 +182,24 @@ export default function LoginPage() {
             By signing in you agree to our Terms & Privacy.
           </p>
         </div>
+      </div>
+    </main>
+  );
+}
+
+function LoginShell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="min-h-screen">
+      <header className="border-b border-[var(--border)]">
+        <div className="container-narrow flex items-center justify-between py-5">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded bg-accent" />
+            <span className="font-semibold tracking-tight">Swarm Testing</span>
+          </Link>
+        </div>
+      </header>
+      <div className="container-narrow flex min-h-[70vh] items-center justify-center py-20 text-sm text-[var(--muted)]">
+        {children}
       </div>
     </main>
   );
