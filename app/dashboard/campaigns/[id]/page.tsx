@@ -3,14 +3,13 @@ import Link from "next/link";
 import { createServerClient } from "@/lib/supabase-server";
 import { DashboardNav } from "@/components/DashboardNav";
 import { CampaignStatus } from "@/components/CampaignStatus";
-import { ScenarioMatrix } from "@/components/ScenarioMatrix";
-import { PersonaCard } from "@/components/PersonaCard";
+import { ProjectTabs } from "@/components/ProjectTabs";
 import { formatDate } from "@/lib/format";
 import type { Matrix, Persona, Run } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function CampaignDetailPage({
+export default async function ProjectDetailPage({
   params
 }: {
   params: { id: string };
@@ -39,7 +38,9 @@ export default async function CampaignDetailPage({
       .maybeSingle(),
     supabase
       .from("personas")
-      .select("id, campaign_id, matrix_row_id, name, archetype, goals, biases, soul_md, created_at")
+      .select(
+        "id, campaign_id, matrix_row_id, name, archetype, goals, biases, soul_md, created_at"
+      )
       .eq("campaign_id", params.id),
     supabase
       .from("runs")
@@ -51,7 +52,7 @@ export default async function CampaignDetailPage({
 
   if (!campaign) notFound();
 
-  const matrixTyped = matrix as Matrix | null;
+  const matrixTyped = (matrix ?? null) as Matrix | null;
   const personasTyped = (personas ?? []) as Persona[];
   const runsTyped = (runs ?? []) as Run[];
 
@@ -72,7 +73,7 @@ export default async function CampaignDetailPage({
           href="/dashboard/campaigns"
           className="text-sm text-[var(--muted)] hover:text-white"
         >
-          ← Campaigns
+          ← Projects
         </Link>
 
         <div className="mt-4 flex items-start justify-between gap-4">
@@ -92,12 +93,11 @@ export default async function CampaignDetailPage({
 
         {campaign.error && (
           <div className="mt-6 rounded-md border border-red-500/40 p-4 text-sm text-red-300">
-            <p className="font-medium">Campaign failed</p>
+            <p className="font-medium">Project failed</p>
             <p className="mt-1">{campaign.error}</p>
           </div>
         )}
 
-        {/* Summary */}
         {runsTyped.length > 0 && (
           <div className="mt-10 grid grid-cols-5 gap-3">
             <SummaryCard label="Total" value={summary.total} />
@@ -124,43 +124,14 @@ export default async function CampaignDetailPage({
           </div>
         )}
 
-        {/* Matrix */}
-        {matrixTyped && matrixTyped.rows.length > 0 && (
-          <div className="mt-12">
-            <h2 className="text-xl font-semibold tracking-tight">Matrix</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              Rows are product configurations. Columns are agentic scenarios.
-              Click a cell to see the transcript.
-            </p>
-            <div className="mt-6">
-              <ScenarioMatrix matrix={matrixTyped} runs={runsTyped} />
-            </div>
-          </div>
-        )}
-
-        {/* Personas */}
-        {personasTyped.length > 0 && (
-          <div className="mt-12">
-            <h2 className="text-xl font-semibold tracking-tight">Personas</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              One persona per configuration row.
-            </p>
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {personasTyped.map((p) => (
-                <PersonaCard key={p.id} persona={p} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Empty state while orchestrator is still building */}
-        {!matrixTyped && (
-          <div className="mt-12 rounded-md border border-[var(--border)] p-8 text-center text-[var(--muted)]">
-            {campaign.status === "queued" || campaign.status === "designing"
-              ? "Matrix is being designed — check back in a few minutes."
-              : "No matrix yet."}
-          </div>
-        )}
+        <div className="mt-12">
+          <ProjectTabs
+            matrix={matrixTyped}
+            personas={personasTyped}
+            runs={runsTyped}
+            status={campaign.status}
+          />
+        </div>
       </section>
     </main>
   );

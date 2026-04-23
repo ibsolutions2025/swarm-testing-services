@@ -45,11 +45,12 @@ export default function DashboardPage() {
 
       <section className="container-narrow py-16">
         <h1 className="text-3xl font-semibold tracking-tight">
-          New test campaign
+          New project
         </h1>
         <p className="mt-2 text-[var(--muted)]">
           Give us a URL and describe what you want the swarm to test. We'll
-          design the matrix, build personas, and return results you can act on.
+          design the matrix, build personas, and return transactions you can
+          act on.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-10 space-y-6">
@@ -97,7 +98,7 @@ export default function DashboardPage() {
             disabled={status === "submitting"}
             className="rounded-md bg-accent px-6 py-3 font-medium hover:opacity-90 disabled:opacity-50"
           >
-            {status === "submitting" ? "Designing matrix…" : "Launch campaign"}
+            {status === "submitting" ? "Designing matrix…" : "Launch project"}
           </button>
         </form>
 

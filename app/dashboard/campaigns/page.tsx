@@ -4,15 +4,24 @@ import { createServerClient } from "@/lib/supabase-server";
 import { DashboardNav } from "@/components/DashboardNav";
 import { CampaignStatus } from "@/components/CampaignStatus";
 import { formatDate, truncate } from "@/lib/format";
+import { ensureAwpSeeded } from "@/lib/seed-awp";
 
 export const dynamic = "force-dynamic";
 
-export default async function CampaignsPage() {
+export default async function ProjectsPage() {
   const supabase = createServerClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/dashboard/campaigns");
+
+  // Auto-seed AWP as the user's first project on first visit. Best-effort:
+  // failures fall through to the empty state.
+  try {
+    await ensureAwpSeeded(user.id);
+  } catch {
+    /* non-fatal */
+  }
 
   const { data, error } = await supabase
     .from("campaigns")
@@ -31,12 +40,12 @@ export default async function CampaignsPage() {
 
       <section className="container-narrow py-16">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-semibold tracking-tight">Campaigns</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
           <Link
             href="/dashboard"
             className="rounded-md bg-accent px-4 py-2 text-sm font-medium hover:opacity-90"
           >
-            New campaign
+            New project
           </Link>
         </div>
 
@@ -49,9 +58,9 @@ export default async function CampaignsPage() {
 
         {!tableMissing && campaigns.length === 0 && (
           <div className="mt-12 rounded-md border border-[var(--border)] p-8 text-center text-[var(--muted)]">
-            No campaigns yet. Launch your first one from the{" "}
+            No projects yet. Launch your first one from the{" "}
             <Link href="/dashboard" className="text-accent hover:underline">
-              New campaign
+              New project
             </Link>{" "}
             tab.
           </div>

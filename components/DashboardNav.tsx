@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const tabs: { href: string; label: string }[] = [
-  { href: "/dashboard", label: "New campaign" },
-  { href: "/dashboard/campaigns", label: "Campaigns" },
-  { href: "/dashboard/personas", label: "Personas" }
+  { href: "/dashboard/campaigns", label: "Projects" },
+  { href: "/dashboard", label: "New project" },
+  { href: "/dashboard/personas", label: "Persona library" }
 ];
 
 export function DashboardNav() {
