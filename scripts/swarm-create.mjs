@@ -24,6 +24,45 @@ import { createPublicClient, createWalletClient, http, parseAbi } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import { readFileSync, writeFileSync, existsSync, appendFileSync } from 'fs';
+import { runAgent } from './swarm-agent-runner.mjs';
+
+const STARTED_AT = Date.now();
+
+const STS_SUPABASE_URL =
+  process.env.STS_SUPABASE_URL || 'https://ldxcenmhazelrnrlxuwq.supabase.co';
+const STS_SUPABASE_KEY = process.env.STS_SUPABASE_KEY;
+
+async function emitHeartbeat(component, actions_count, note, extraMeta = {}) {
+  if (!STS_SUPABASE_KEY) {
+    console.log(`[heartbeat] skipped (${component}): STS_SUPABASE_KEY not set`);
+    return;
+  }
+  try {
+    const resp = await fetch(`${STS_SUPABASE_URL}/rest/v1/system_heartbeats`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: STS_SUPABASE_KEY,
+        Authorization: `Bearer ${STS_SUPABASE_KEY}`,
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        project_id: 'awp',
+        component,
+        outcome: actions_count > 0 ? 'ok' : 'idle',
+        actions_count,
+        note,
+        meta: { duration_ms: Date.now() - STARTED_AT, ...extraMeta },
+      }),
+    });
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '');
+      console.log(`[heartbeat] POST failed ${resp.status}: ${t.slice(0, 200)}`);
+    }
+  } catch (e) {
+    console.log(`[heartbeat] error: ${e.message?.slice(0, 200)}`);
+  }
+}
 
 const RPC       = process.env.AWP_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/xlgHg3R-suQ_fJKc3vN39';
 const JOB_NFT   = '0x267e831e6ac1e7c9e69bd99aec7f41e03a421198';
@@ -191,20 +230,33 @@ function configKeyToParams(key, poster) {
 }
 
 // ============================================================
-// Job templates
+// Translate config params → natural-language constraint bullets for the
+// poster agent. Must be insider-info clean — no enum names, no scenario
+// IDs, no "HARD_ONLY"-style strings.
 // ============================================================
-const JOB_TEMPLATES = [
-  { title: 'Smart Contract Gas-Optimization Review', desc: 'Review a contract for gas-saving opportunities. Flag inefficient loops and storage usage.' },
-  { title: 'API Rate-Limiting Design', desc: 'Design a token-bucket rate limiter for an API gateway. Provide pseudocode and config.' },
-  { title: 'Data Pipeline Back-Pressure Analysis', desc: 'Analyze back-pressure handling in a Kafka→PostgreSQL pipeline. Recommend tuning.' },
-  { title: 'OAuth2 Login Flow Audit', desc: 'Walk through an OAuth2 authorization-code flow and flag any token-leak risks.' },
-  { title: 'Unit Test Scaffold for Utility Library', desc: 'Scaffold Jest unit tests for a date-manipulation utility library.' },
-  { title: 'DevOps Runbook for Blue-Green Deploy', desc: 'Write a runbook for zero-downtime blue-green deployment of a Node.js service.' },
-  { title: 'Performance Profile of React App', desc: 'Profile a React SPA and report the top 3 render bottlenecks with remediation.' },
-  { title: 'Database Index Strategy Review', desc: 'Review a PostgreSQL schema and recommend indexes for a given query pattern.' },
-  { title: 'Kubernetes Resource-Request Audit', desc: 'Audit Kubernetes pod resource requests and limits for a web tier.' },
-  { title: 'Observability Dashboard Spec', desc: 'Specify Grafana panels for a REST API dashboard: latency, error rate, throughput.' },
-];
+function configKeyToConstraints(key) {
+  const [valMode, deadline, subMode, workerAccess, validatorAccess] = key.split('-');
+  const lines = [];
+  if (valMode === 'soft') lines.push('Reviewer judges by hand');
+  else if (valMode === 'hard') lines.push('Automated script checks the submission');
+  else if (valMode === 'hardsift') lines.push('Automated check first, then human review');
+
+  if (subMode === 'single') lines.push('First valid submission wins the job');
+  else if (subMode === 'multi') lines.push('Multiple workers can submit; reviewer picks the best');
+
+  if (deadline === 'timed') lines.push('2-hour submission window');
+  else lines.push('No submission deadline');
+
+  if (workerAccess === 'open') lines.push('Any worker can take this');
+  else if (workerAccess === 'approved') lines.push('Only specific workers you trust can take this');
+  else if (workerAccess === 'rating') lines.push('Workers need a reputation score of at least 4.0');
+
+  if (validatorAccess === 'open') lines.push('Any qualified reviewer can judge this');
+  else if (validatorAccess === 'approved') lines.push('Only specific reviewers you trust');
+  else if (validatorAccess === 'rating') lines.push('Reviewers need a reputation score of at least 4.0');
+
+  return lines;
+}
 
 // ============================================================
 // Clients
@@ -247,9 +299,21 @@ console.log(`[${RUN_ID}] config=${targetConfig}`);
 const poster = AGENTS[cycleCount % AGENTS.length];
 console.log(`[${RUN_ID}] poster=${poster.name} (${poster.address})`);
 
-// 4. Build params
+// 4. Build params + ask the poster agent to name the job in their own voice
 const params = configKeyToParams(targetConfig, poster);
-const tpl = JOB_TEMPLATES[cycleCount % JOB_TEMPLATES.length];
+const constraints = configKeyToConstraints(targetConfig);
+const agentOut = await runAgent({
+  persona: poster.name,
+  taskType: 'create',
+  context: {
+    rewardUSDC: '5',
+    constraints,
+  },
+});
+const tpl = { title: agentOut.title, desc: agentOut.description };
+if (agentOut.fell_back) {
+  console.log(`[${RUN_ID}] agent-runner fell back on create for ${poster.name}`);
+}
 
 // 5. Requirements JSON (embed minRating here since contract only has one setter)
 const requirementsJson = JSON.stringify({
@@ -356,4 +420,12 @@ appendFileSync('/var/log/awp-create.log',
   `[${RUN_ID}] cycle=${cycleCount} jobId=${createdJobId} config=${targetConfig} scenario=${targetScenario} poster=${poster.name}\n`);
 
 console.log(`[${RUN_ID}] DONE — annotated job #${createdJobId} as ${targetScenario}`);
+
+await emitHeartbeat(
+  'swarm-create',
+  1,
+  `created job #${createdJobId}`,
+  { jobId: createdJobId, agent_fell_back: !!agentOut.fell_back }
+);
+
 process.exit(0);

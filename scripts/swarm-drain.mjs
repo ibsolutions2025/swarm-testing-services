@@ -29,6 +29,47 @@ import { createPublicClient, createWalletClient, http, parseAbi } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { runAgent } from './swarm-agent-runner.mjs';
+
+const STARTED_AT = Date.now();
+let errorCount = 0;
+
+const STS_SUPABASE_URL =
+  process.env.STS_SUPABASE_URL || 'https://ldxcenmhazelrnrlxuwq.supabase.co';
+const STS_SUPABASE_KEY = process.env.STS_SUPABASE_KEY;
+
+async function emitHeartbeat(component, actions_count, note, extraMeta = {}) {
+  if (!STS_SUPABASE_KEY) {
+    console.log(`[heartbeat] skipped (${component}): STS_SUPABASE_KEY not set`);
+    return;
+  }
+  try {
+    const body = {
+      project_id: 'awp',
+      component,
+      outcome: actions_count > 0 ? 'ok' : 'idle',
+      actions_count,
+      note,
+      meta: { errors: errorCount, duration_ms: Date.now() - STARTED_AT, ...extraMeta },
+    };
+    const resp = await fetch(`${STS_SUPABASE_URL}/rest/v1/system_heartbeats`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: STS_SUPABASE_KEY,
+        Authorization: `Bearer ${STS_SUPABASE_KEY}`,
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => '');
+      console.log(`[heartbeat] POST failed ${resp.status}: ${t.slice(0, 200)}`);
+    }
+  } catch (e) {
+    console.log(`[heartbeat] error: ${e.message?.slice(0, 200)}`);
+  }
+}
 
 // ============================================================
 // Config
@@ -112,10 +153,25 @@ const RG_ABI = parseAbi([
 // ============================================================
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-function makeDeliverableUrl(jobId, agent) {
-  // Must: start with https, len >= 50, contain comma (heuristic scorer needs these)
-  const base = `https://awp-submissions.example.com/job${jobId},${agent.name.toLowerCase()}-v2-delivery`;
-  return base.length >= 50 ? base : base + '-padded-for-min-length-requirement';
+// Agent-driven submission content. The URL + note are produced by the
+// persona's voice via the OpenRouter runner; the caller writes the tx.
+async function agentSubmit(jobId, agent, job) {
+  const out = await runAgent({
+    persona: agent.name,
+    taskType: 'submit',
+    context: {
+      job: {
+        jobId,
+        title: job?.title ?? '',
+        description: job?.description ?? '',
+        rewardUSDC: job?.reward ? (Number(job.reward) / 1_000_000).toString() : '5',
+        posterShort: job?.poster
+          ? `${job.poster.slice(0, 6)}…${job.poster.slice(-4)}`
+          : 'unknown',
+      },
+    },
+  });
+  return out;
 }
 
 async function getJob(jobId) {
@@ -132,6 +188,8 @@ async function getJob(jobId) {
       activeValidator: r[3],
       waitlist: r[4],
       openValidation: Boolean(r[6]),
+      title: r[7],
+      description: r[8],
       validationMode: Number(r[11]),   // 0=HARD_ONLY, 1=SOFT_ONLY, 2=HARD_THEN_SOFT
       submissionMode: Number(r[12]),   // 0=FCFS, 1=MULTI
       submissionWindow: Number(r[13]),
@@ -240,22 +298,12 @@ function pickAgent(jobId, role) {
 }
 
 // ============================================================
-// Scenario decision — what should validator do on a pending sub?
+// Scenario-driven validator bias removed (Phase 5).
+// Outcome scenarios (s01/s03/s04/s05/s12/s16) are no longer steered —
+// the validator persona decides via runAgent in the approve/reject
+// branch. Event-order scenarios (s10 cancel follow-up) are still
+// consulted at their specific sites.
 // ============================================================
-function validatorDecision(job, subIndex, subCount) {
-  const scenario = intendedFor(job.id);
-  // s05-total-rejection: always reject. After all subs rejected, cancel via rejectAll.
-  // s10-reject-all-cancel: reject, then rejectAll, then cancel.
-  // s04-rejection-loop: reject for first 2 attempts, approve on 3rd.
-  // everything else (s01/s02/s03/s06/s16/s12): approve.
-  if (scenario === 's05-total-rejection' || scenario === 's10-reject-all-cancel') {
-    return 'reject';
-  }
-  if (scenario === 's04-rejection-loop') {
-    return subIndex < 2 ? 'reject' : 'approve';
-  }
-  return 'approve';
-}
 
 // ============================================================
 // Per-job progression
@@ -304,22 +352,26 @@ async function progressJob(jobId) {
     }
     for (const agent of pickAgent(jobId, 'submit')) {
       if (!canSubmitWork(job, agent)) continue;
-      const url = makeDeliverableUrl(jobId, agent);
+      const out = await agentSubmit(jobId, agent, job);
+      const url = out.deliverableUrl;
       const sim = await simulate(agent, 'submitWork', [BigInt(jobId), url, ZERO_B32]);
       if (!sim.ok) { console.log(`  ${summary} | SUBMIT skip ${agent.name}: ${sim.reason}`); continue; }
       try {
         const r = await writeTx(agent, 'submitWork', [BigInt(jobId), url, ZERO_B32], 1_500_000n);
-        console.log(`  ${summary} | SUBMIT by ${agent.name} tx=${r.hash} status=${r.status}`);
+        console.log(`  ${summary} | SUBMIT by ${agent.name} tx=${r.hash} status=${r.status}${out.fell_back ? ' [runner-fallback]' : ''}`);
         actionsTaken++;
         return 'submit';
       } catch (e) {
+        errorCount++;
         console.log(`  ${summary} | SUBMIT fail ${agent.name}: ${e.shortMessage || e.message?.slice(0,120)}`);
       }
     }
   }
 
-  // === STATE: s03-competitive-workers, sub exists but could use a second submitter ===
-  if (scenario === 's03-competitive-workers' && subCount < 2 && job.allowResubmission) {
+  // === STATE: multi-submission mode with an open slot → dispatch a second submitter ===
+  // Natural behavior; scenario annotation is NOT consulted here (competitive-workers
+  // is an outcome scenario, fills in organically when multi jobs get multiple subs).
+  if (job.submissionMode === 1 && job.allowResubmission && subCount < 2) {
     for (const agent of pickAgent(jobId, 'submit')) {
       if (!canSubmitWork(job, agent)) continue;
       // Check agent hasn't already submitted
@@ -329,15 +381,17 @@ async function progressJob(jobId) {
         if (s && s.worker.toLowerCase() === agent.address.toLowerCase()) { already = true; break; }
       }
       if (already) continue;
-      const url = makeDeliverableUrl(jobId, agent);
+      const out = await agentSubmit(jobId, agent, job);
+      const url = out.deliverableUrl;
       const sim = await simulate(agent, 'submitWork', [BigInt(jobId), url, ZERO_B32]);
       if (!sim.ok) continue;
       try {
         const r = await writeTx(agent, 'submitWork', [BigInt(jobId), url, ZERO_B32], 1_500_000n);
-        console.log(`  ${summary} | SECOND-SUBMIT by ${agent.name} tx=${r.hash}`);
+        console.log(`  ${summary} | SECOND-SUBMIT by ${agent.name} tx=${r.hash}${out.fell_back ? ' [runner-fallback]' : ''}`);
         actionsTaken++;
         return 'second-submit';
       } catch (e) {
+        errorCount++;
         console.log(`  ${summary} | SECOND-SUBMIT fail ${agent.name}: ${e.shortMessage || e.message?.slice(0,120)}`);
       }
     }
@@ -359,37 +413,61 @@ async function progressJob(jobId) {
     }
     if (pendingIdx < 0) return null; // nothing pending
 
-    const decision = validatorDecision(job, pendingIdx, subCount);
+    // Fetch the pending submission's details so the validator persona can
+    // actually react to them.
+    const pendingSub = await getSub(jobId, pendingIdx);
+    const out = await runAgent({
+      persona: validator.name,
+      taskType: 'review',
+      context: {
+        job: {
+          jobId,
+          title: job?.title ?? '',
+          description: job?.description ?? '',
+        },
+        submission: {
+          workerShort: pendingSub?.worker
+            ? `${pendingSub.worker.slice(0, 6)}…${pendingSub.worker.slice(-4)}`
+            : 'someone',
+          deliverableUrl: pendingSub?.deliverableUrl ?? '',
+          note: '',
+        },
+      },
+    });
+    const decision = out.decision;
     if (decision === 'reject') {
       const sim = await simulate(validator, 'rejectSubmission', [BigInt(jobId), BigInt(pendingIdx)]);
       if (!sim.ok) { console.log(`  ${summary} | REJECT skip: ${sim.reason}`); return null; }
       try {
         const r = await writeTx(validator, 'rejectSubmission', [BigInt(jobId), BigInt(pendingIdx)], 800_000n);
-        console.log(`  ${summary} | REJECT by ${validator.name} sub=${pendingIdx} tx=${r.hash}`);
+        console.log(`  ${summary} | REJECT by ${validator.name} sub=${pendingIdx} score=${out.score} tx=${r.hash}${out.fell_back ? ' [runner-fallback]' : ''}`);
         actionsTaken++;
         return 'reject';
       } catch (e) {
+        errorCount++;
         console.log(`  ${summary} | REJECT fail: ${e.shortMessage || e.message?.slice(0,120)}`);
       }
     } else {
-      // approve
-      const feedback = `Work meets the requirements for job #${jobId}. Deliverable reviewed.`;
+      // approve — pass the agent's own comment as on-chain feedback
+      const feedback = (out.comment || '').slice(0, 400)
+        || `Reviewed for job #${jobId}.`;
       const sim = await simulate(validator, 'approveSubmission', [BigInt(jobId), BigInt(pendingIdx), '0x', feedback]);
       if (!sim.ok) { console.log(`  ${summary} | APPROVE skip: ${sim.reason}`); return null; }
       try {
         const r = await writeTx(validator, 'approveSubmission', [BigInt(jobId), BigInt(pendingIdx), '0x', feedback], 1_500_000n);
-        console.log(`  ${summary} | APPROVE by ${validator.name} sub=${pendingIdx} tx=${r.hash}`);
+        console.log(`  ${summary} | APPROVE by ${validator.name} sub=${pendingIdx} score=${out.score} tx=${r.hash}${out.fell_back ? ' [runner-fallback]' : ''}`);
         actionsTaken++;
         return 'approve';
       } catch (e) {
+        errorCount++;
         console.log(`  ${summary} | APPROVE fail: ${e.shortMessage || e.message?.slice(0,120)}`);
       }
     }
   }
 
-  // === STATE: s05/s10 — all subs rejected, rejectAll ===
-  if ((scenario === 's05-total-rejection' || scenario === 's10-reject-all-cancel') &&
-      subCount > 0 && job.allowRejectAll && job.status < 2) {
+  // === STATE: all subs rejected → rejectAll cleanup (natural; no scenario gate) ===
+  // Inner s10 branch still triggers cancelJob as an event-order steer.
+  if (subCount > 0 && job.allowRejectAll && job.status < 2) {
     const validator = AGENTS.find(a => a.address.toLowerCase() === job.activeValidator.toLowerCase());
     if (validator) {
       // Check all subs are rejected (status 2)
@@ -535,4 +613,11 @@ if (actionsTaken < MAX_ACTIONS) {
 }
 
 console.log(`[${RUN_ID}] DONE — total actions: ${actionsTaken}`);
+
+await emitHeartbeat(
+  'swarm-drain',
+  actionsTaken,
+  `drained ${actionsTaken} actions across ${highJob - lowJob} jobs`
+);
+
 process.exit(0);
