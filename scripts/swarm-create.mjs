@@ -374,6 +374,13 @@ const requirementsJson = JSON.stringify({
 });
 
 // 6. Check USDC balance + approve
+// Hoist the wallet client ONCE for this poster and reuse for all writes in
+// the cycle. Creating a fresh walletClient per tx gives each its own
+// in-memory nonce tracker, which races when approve + createJob share the
+// same account (the createJob client's cached nonce doesn't know the
+// approve just spent one). Single instance ⇒ viem refreshes via
+// getTransactionCount correctly between writes.
+const pwal = walletFor(poster);
 const rewardUSDC = 5n * 10n ** 6n; // 5 USDC (6 decimals)
 const bal = await pub.readContract({ address: MOCK_USDC, abi: USDC_ABI, functionName: 'balanceOf', args: [poster.address] });
 if (bal < rewardUSDC) {
@@ -389,7 +396,6 @@ if (bal < rewardUSDC) {
 const allow = await pub.readContract({ address: MOCK_USDC, abi: USDC_ABI, functionName: 'allowance', args: [poster.address, JOB_NFT] });
 if (allow < rewardUSDC) {
   console.log(`[${RUN_ID}] approving USDC...`);
-  const pwal = walletFor(poster);
   const approveHash = await pwal.writeContract({
     address: MOCK_USDC, abi: USDC_ABI, functionName: 'approve',
     args: [JOB_NFT, 10_000n * 10n ** 6n], gas: 100_000n,
@@ -428,7 +434,6 @@ const args = [
 
 let createdJobId = null;
 try {
-  const pwal = walletFor(poster);
   const hash = await pwal.writeContract({
     address: JOB_NFT, abi: JOB_ABI, functionName: 'createJob', args, gas: 3_000_000n,
   });

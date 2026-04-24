@@ -374,7 +374,7 @@ export async function runAgent({
   console.log(
     `[agent-runner] persona=${persona} task=${taskType} turns=${turns} ` +
       `tokens=${tokensIn}/${tokensOut} ms=${ms} outcome=fallback` +
-      (lastErr ? ` err=${lastErr.message?.slice(0, 120)}` : "")
+      (lastErr ? ` err=${lastErr.message?.slice(0, 500)}` : "")
   );
   return fb;
 }
