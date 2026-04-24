@@ -98,7 +98,7 @@ async function emitOrchestrationEvent(fields) {
 }
 
 const RPC       = process.env.AWP_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/xlgHg3R-suQ_fJKc3vN39';
-const JOB_NFT   = '0x267e831e6ac1e7c9e69bd99aec7f41e03a421198';
+const JOB_NFT   = '0xc95ed85a6722399ee8eaa878adec79a8bea3c895';
 const MOCK_USDC = '0x7ae8519d5fb7be655be9846553a595de8e00c209';
 const SCENARIOS_FILE = '/root/test-swarm/intended-scenarios.json';
 const CYCLE_FILE     = '/root/test-swarm/.create-cycle';
@@ -305,7 +305,7 @@ const USDC_ABI = parseAbi([
 ]);
 
 const JOB_ABI = parseAbi([
-  'function createJob(string title, string description, string requirementsJson, uint256 reward, bool openValidation, address[] approvedValidators, uint256 minWorkerRating, uint256 minValidatorRating, uint8 validationMode, uint8 submissionMode, uint256 submissionWindow, string validationScriptCID, bool requireSecurityAudit, string securityAuditTemplate, bool allowResubmission, bool allowRejectAll, address[] approvedWorkers, string validationInstructions) returns (uint256)',
+  'function createJob(string title, string description, string requirementsJson, uint256 rewardAmount, bool openValidation, address[] approvedValidators, uint256 validatorTimeoutSeconds, uint256 claimWindowHours_, uint8 validationMode_, uint8 submissionMode_, uint256 submissionWindow_, string validationScriptCID_, bool requireSecurityAudit_, string securityAuditTemplate_, bool allowResubmission_, bool allowRejectAll_, address[] approvedWorkers_, string validationInstructions_, uint256 minWorkerRating_, uint256 minValidatorRating_) returns (uint256)',
 ]);
 
 // ============================================================
@@ -405,12 +405,14 @@ if (allow < rewardUSDC) {
 }
 
 // 7. createJob
-// V14 signature from JobNFT ABI:
-//   createJob(title, description, requirementsJson, reward, openValidation,
-//     approvedValidators, minWorkerRating, minValidatorRating, validationMode,
-//     submissionMode, submissionWindow, validationScriptCID, requireSecurityAudit,
-//     securityAuditTemplate, allowResubmission, allowRejectAll, approvedWorkers,
-//     validationInstructions)
+// V15 signature from JobNFT ABI (20 args — ratings moved to trailing positions,
+// two new params: validatorTimeoutSeconds + claimWindowHours_ at positions 7-8):
+//   createJob(title, description, requirementsJson, rewardAmount, openValidation,
+//     approvedValidators, validatorTimeoutSeconds, claimWindowHours_,
+//     validationMode_, submissionMode_, submissionWindow_, validationScriptCID_,
+//     requireSecurityAudit_, securityAuditTemplate_, allowResubmission_,
+//     allowRejectAll_, approvedWorkers_, validationInstructions_,
+//     minWorkerRating_, minValidatorRating_)
 const args = [
   tpl.title,
   tpl.desc,
@@ -418,21 +420,23 @@ const args = [
   rewardUSDC,
   params.openValidation,
   params.approvedValidators,
-  BigInt(params.minWorkerRating),
-  BigInt(params.minValidatorRating),
+  0n,                           // validatorTimeoutSeconds (0 = contract default 2h)
+  0n,                           // claimWindowHours_
   params.validationMode,
   params.submissionMode,
   BigInt(params.submissionWindow),
   params.validationScriptCID,
-  false,                        // requireSecurityAudit
-  '',                           // securityAuditTemplate
+  false,                        // requireSecurityAudit_
+  '',                           // securityAuditTemplate_
   params.allowResubmission,
   params.allowRejectAll,
   params.approvedWorkers,
-  // validationInstructions — contract requires non-empty. Generic,
+  // validationInstructions_ — contract requires non-empty. Generic,
   // persona-agnostic note for any validator that picks up the job.
   // Revert reason when empty: "J: validation instructions required".
   'Judge the submission against the job description. Score 1-5 and briefly explain your rating.',
+  BigInt(params.minWorkerRating),    // minWorkerRating_ (trailing in V15)
+  BigInt(params.minValidatorRating), // minValidatorRating_ (trailing in V15)
 ];
 
 let createdJobId = null;

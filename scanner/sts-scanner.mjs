@@ -51,8 +51,8 @@ const supabase = createClient(STS_SUPABASE_URL, STS_SUPABASE_KEY, {
 // ============================================================
 // Chain + contracts
 // ============================================================
-const JOBNFT_ADDRESS    = '0x267e831e6ac1e7c9e69bd99aec7f41e03a421198';
-const REVIEWGATE_ADDRESS = '0xbf704b315a95cb21c64ac390f6b5788b5d72b397';
+const JOBNFT_ADDRESS    = '0xc95ed85a6722399ee8eaa878adec79a8bea3c895';
+const REVIEWGATE_ADDRESS = '0x7856191147766f4421aaa312def42a885820550d';
 const DEPLOY_BLOCK      = 40216956n;
 const PREFETCH_CHUNK    = 10000n;
 const ZERO_ADDR         = '0x0000000000000000000000000000000000000000';

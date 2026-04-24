@@ -108,8 +108,8 @@ async function emitOrchestrationEvent(fields) {
 // Config
 // ============================================================
 const RPC       = process.env.AWP_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/xlgHg3R-suQ_fJKc3vN39';
-const JOB_NFT   = '0x267e831e6ac1e7c9e69bd99aec7f41e03a421198'; // V14
-const RG        = '0xbf704b315a95cb21c64ac390f6b5788b5d72b397'; // V3
+const JOB_NFT   = '0xc95ed85a6722399ee8eaa878adec79a8bea3c895'; // V14
+const RG        = '0x7856191147766f4421aaa312def42a885820550d'; // V3
 const ZERO_B32  = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
 
