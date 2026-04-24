@@ -429,7 +429,10 @@ const args = [
   params.allowResubmission,
   params.allowRejectAll,
   params.approvedWorkers,
-  '',                           // validationInstructions
+  // validationInstructions — contract requires non-empty. Generic,
+  // persona-agnostic note for any validator that picks up the job.
+  // Revert reason when empty: "J: validation instructions required".
+  'Judge the submission against the job description. Score 1-5 and briefly explain your rating.',
 ];
 
 let createdJobId = null;
