@@ -112,6 +112,21 @@ export async function GET(request: NextRequest) {
     };
     const normalize = (k: string) => SCENARIO_KEY_MAP[k] || k;
 
+    // V15 scanner classifies still-running jobs as 's00-in-flight' (no
+    // terminal scenario_key yet). Those rows have no S## column to land
+    // in, so the matrix Running counter would silently miss them. The
+    // scanner stores the *intended* scenario in cell_audit.intended_scenario
+    // (parsed from the on-chain requirementsJson that swarm-create embeds).
+    // Re-bucket in-flight rows under that intended scenario so they show up
+    // as Running under the cell they're headed for. Falls back to the raw
+    // 's00-in-flight' key if cell_audit is missing or malformed.
+    const remapToIntended = (row: { scenario_key: string; cell_audit?: unknown }) => {
+      if (row.scenario_key !== 's00-in-flight') return row.scenario_key;
+      const ca = row.cell_audit as { intended_scenario?: unknown } | null | undefined;
+      const intended = ca && typeof ca.intended_scenario === 'string' ? ca.intended_scenario : null;
+      return intended ? normalize(intended) : row.scenario_key;
+    };
+
     type Cell = {
       status: string;
       jobCount: number;
@@ -123,7 +138,7 @@ export async function GET(request: NextRequest) {
     const scenarios = new Set<string>();
 
     for (const row of results || []) {
-      const scenarioKeyNorm = normalize(row.scenario_key);
+      const scenarioKeyNorm = remapToIntended(row);
       row.scenario_key = scenarioKeyNorm;
       const cellKey = `${row.config_key}:${scenarioKeyNorm}`;
 

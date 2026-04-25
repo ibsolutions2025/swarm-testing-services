@@ -29,6 +29,12 @@ export async function OPTIONS() {
  * run (swarm-drain, swarm-create, sts-scanner). Until that VPS patch
  * lands, all components return { last: null, count24h: 0 } and the
  * Operations tab renders the idle fallback.
+ *
+ * Component matching uses LIKE `${component}%` rather than equality so
+ * versioned suffixes match (e.g. the V15 cutover renamed the scanner's
+ * heartbeat component from `sts-scanner` to `sts-scanner-v15`). Without
+ * this, the Operations card sat at "No heartbeat yet" forever after deploy
+ * even though rows were landing in system_heartbeats every 15 min.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -46,12 +52,17 @@ export async function GET(request: NextRequest) {
     };
 
     for (const component of HEARTBEAT_COMPONENTS) {
+      // Prefix-match so e.g. `sts-scanner` matches both `sts-scanner` (V14)
+      // and `sts-scanner-v15` (V15). The most recent row wins for `last`,
+      // and count24h aggregates across versions so the Operations card
+      // doesn't go dark mid-cutover when both daemons are momentarily live.
+      const componentPrefix = `${component}%`;
       const [lastRes, countRes] = await Promise.all([
         admin
           .from("system_heartbeats")
           .select("*")
           .eq("project_id", projectId)
-          .eq("component", component)
+          .like("component", componentPrefix)
           .order("ran_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -59,7 +70,7 @@ export async function GET(request: NextRequest) {
           .from("system_heartbeats")
           .select("*", { count: "exact", head: true })
           .eq("project_id", projectId)
-          .eq("component", component)
+          .like("component", componentPrefix)
           .gte("ran_at", since24h)
       ]);
 
