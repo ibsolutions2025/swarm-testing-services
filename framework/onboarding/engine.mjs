@@ -45,6 +45,14 @@ import * as step10 from "./steps/10-derive-scenarios.mjs";
 import * as step11 from "./steps/11-generate-cell-defs.mjs";
 import * as step12 from "./steps/12-write-audit-doc.mjs";
 
+import {
+  emitRunStarted,
+  emitStepEvent,
+  emitRunFinished,
+  computeStepCost,
+  isWired as progressWired,
+} from "./lib/progress-emitter.mjs";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..", "..");
 
@@ -94,6 +102,51 @@ async function writeState(stateFile, ctx) {
   await writeFile(stateFile, JSON.stringify(ctx, null, 2), "utf8");
 }
 
+/**
+ * Per-step one-line summary for the dashboard's onboarding_step_events.summary.
+ * Mirrors the inline terminal output below so the UI doesn't re-derive.
+ */
+function stepSummary(stepId, output) {
+  if (!output) return null;
+  if (stepId === "01-validate-url") {
+    return `${output.status} ${output.contentType?.split(";")[0]} (${output.bodyLength} bytes)`;
+  }
+  if (stepId === "02-discover-manifest") {
+    return `slug="${output.slug}" schema=${output.schemaVersion || "?"}`;
+  }
+  if (stepId === "03-inventory-contracts") {
+    return `${output.total} contracts on chain ${output.chain?.id}`;
+  }
+  if (stepId === "04-fetch-abis") {
+    return `${output.counts?.fetched_ok}/${output.counts?.total} ABIs fetched`;
+  }
+  if (stepId === "05-crawl-docs") {
+    return `${output.pageCount || 0} pages crawled`;
+  }
+  if (stepId === "06-audit-mcp") {
+    return output.mcpFound ? `MCP server: ${output.mcpName || "found"}` : "no MCP server";
+  }
+  if (stepId === "07-generate-rules") {
+    return `${output.totalRules} rules across ${output.perContract?.length || 0} contracts`;
+  }
+  if (stepId === "08-generate-events") {
+    return `${output.eventCount || output.eventNames?.length || 0} events`;
+  }
+  if (stepId === "09-derive-matrix") {
+    return `${output.axisCount || output.axisNames?.length || 0} axes`;
+  }
+  if (stepId === "10-derive-scenarios") {
+    return `${output.scenarioCount} scenarios (${output.classifiableCount} classifiable, ${output.aspirationalCount} aspirational)`;
+  }
+  if (stepId === "11-generate-cell-defs") {
+    return `${output.classifiableCount}/${output.predicateCount} classifiable predicates`;
+  }
+  if (stepId === "12-write-audit-doc") {
+    return `audit doc ${output.auditDocLength} chars`;
+  }
+  return null;
+}
+
 async function main() {
   const url = process.argv[2];
   if (!url || url.startsWith("--")) {
@@ -135,9 +188,14 @@ async function main() {
   console.log(`URL:      ${url}`);
   console.log(`Run dir:  ${runDir}`);
   console.log(`Out dir:  ${outDir}`);
+  console.log(`Progress: ${progressWired() ? "wired to Supabase" : "not wired (local-only)"}`);
   console.log(`Steps:    ${STEPS.length} (Phase B Batch 1: 01-04)`);
   if (startStep) console.log(`Start at: ${startStep} (resume)`);
   console.log("");
+
+  // Phase C: tell Supabase the run is starting (PATCH; row may already exist
+  // from POST /api/onboarding). Best-effort — failure does not halt engine.
+  await emitRunStarted({ runId, vpsRunDir: runDir }).catch(() => {});
 
   const seenStart = !startStep;
   let resumeReached = seenStart;
@@ -156,6 +214,8 @@ async function main() {
       console.log(` ERR (${e.message?.slice(0, 200)})`);
       ctx.steps[step.id] = { ok: false, error: e.message, stack: e.stack?.slice(0, 1000), elapsedMs: Date.now() - t0 };
       await writeState(stateFile, ctx);
+      await emitStepEvent({ runId, stepId: step.id, status: "fail", elapsedMs: Date.now() - t0, summary: e.message?.slice(0, 200) }).catch(() => {});
+      await emitRunFinished({ runId, status: "failed", error: e.message }).catch(() => {});
       console.error(`\nFATAL: step ${step.id} threw — engine halted. State written to ${stateFile}`);
       process.exit(1);
     }
@@ -164,12 +224,22 @@ async function main() {
       console.log(` FAIL (${elapsed} ms) — ${result.error || "no error msg"}`);
       ctx.steps[step.id] = { ok: false, error: result.error, output: result.output || null, elapsedMs: elapsed };
       await writeState(stateFile, ctx);
+      await emitStepEvent({ runId, stepId: step.id, status: "fail", elapsedMs: elapsed, summary: result.error?.slice(0, 200), output: result.output, usage: result.output?.usage }).catch(() => {});
+      await emitRunFinished({ runId, status: "failed", error: result.error }).catch(() => {});
       console.error(`\nFATAL: step ${step.id} failed. State written to ${stateFile}`);
       process.exit(1);
     }
     console.log(` ok (${elapsed} ms)`);
     ctx.steps[step.id] = { ok: true, output: result.output, elapsedMs: elapsed };
     await writeState(stateFile, ctx);
+
+    // Phase C: emit per-step event to Supabase. summary mirrors the inline
+    // console output below so the dashboard can show it without re-deriving.
+    const summary = stepSummary(step.id, result.output);
+    await emitStepEvent({
+      runId, stepId: step.id, status: "ok",
+      elapsedMs: elapsed, summary, output: result.output, usage: result.output?.usage,
+    }).catch(() => {});
 
     // Per-step inline summary so the operator sees progress in the terminal
     if (step.id === "01-validate-url") {
@@ -193,6 +263,11 @@ async function main() {
 
   ctx.completedAt = new Date().toISOString();
   await writeState(stateFile, ctx);
+
+  // Phase C: tell Supabase the run is complete + record the discovered slug.
+  const discoveredSlug = ctx.steps?.["02-discover-manifest"]?.output?.slug || null;
+  await emitRunFinished({ runId, status: "complete", slug: discoveredSlug }).catch(() => {});
+
   console.log(`\n=== DONE — state at ${stateFile} ===`);
 }
 
