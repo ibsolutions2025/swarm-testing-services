@@ -142,7 +142,7 @@ export async function run(ctx) {
   const tsSource = renderCellDefsTs({
     slug, manifestUrl, predicates, priority, classifiableIds, unclassifiableIds,
   });
-  const outPath = resolve(ctx.repoRoot, "lib", slug, "cell-defs.ts");
+  const outPath = resolve(ctx.outDir || ctx.repoRoot, "lib", slug, "cell-defs.ts");
   await writeFile(outPath, tsSource, "utf8");
 
   return {
