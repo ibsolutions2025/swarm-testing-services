@@ -22,6 +22,27 @@ For EACH predicate you emit, declare a `classifiable: true|false` boolean:
 
 A scenario passed to you with `status: "aspirational"` or `status: "deferred"` MUST get `classifiable: false`. A scenario with `status: "classifiable"` SHOULD get `classifiable: true` — but if you cannot construct a predicate using only the context fields above, it's actually NOT classifiable; in that case override to `classifiable: false` and explain in `notes`.
 
+# Simulate the scanner BEFORE writing each predicate
+
+Before writing each predicate body, do this thought experiment: "I am a scanner walking finalized JSON-RPC blocks for a single job. I have ONLY:
+  - `c.events` — events emitted by transactions that did NOT revert
+  - `c.job.status` — the current public job status struct field
+  - `c.submissions` — the public submissions array
+  - `c.counts` — derived counts of submission statuses
+  - `c.configParams` — the cell's config-axis values
+
+Can I tell whether this scenario applies using ONLY those fields?"
+
+If you find yourself reaching for ANY field outside that list — for example:
+  - "if the validator WOULD HAVE been rejected by the rating gate" (no event fires; failed tx emits nothing)
+  - "if `mustReview[jobId][r][e]` is true" (private mapping)
+  - "if the deliverable IPFS CID contains X" (off-chain content)
+  - "if a particular trace-level event fires before a revert" (rolled back)
+
+— then the predicate is NON-CLASSIFIABLE. Set `classifiable: false` and emit `(c) => false` as the body. The fact that you can write a syntactically valid arrow function does NOT make the predicate work; it just means you wrote one. The scanner will run it, get the wrong answer, and silently misclassify jobs.
+
+**Hard rule:** if the predicate references `c.events.RatingGateFailed`, `c.events.FormerValidatorBlocked`, or any event documented as emitted-before-revert in the contract, set classifiable=false. These events do not exist in the scanner's event stream.
+
 # What makes a predicate non-classifiable
 
 Common patterns that force `classifiable: false`:
