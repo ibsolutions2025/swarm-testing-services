@@ -24,7 +24,15 @@ Heuristic: if two candidate axes constrain the same role (e.g. who can be a vali
 
 **General rule:** when two candidate axes have an axis_constraint of the form "axisA=X ⇒ axisB=default" or "axisA and axisB cannot both be non-default," they are almost always the same axis. Fold.
 
-**Boolean toggles vs axes:** a boolean parameter that adds a single conditional revert (e.g. `requireSecurityAudit: bool`) is a FLAG, not an axis. Flags don't expand the lifecycle space — they enable an extra precondition on one function. Drop flags from the matrix; they belong in rules.ts only.
+**Boolean toggles vs axes — FLAG TEST:** a boolean parameter that adds a single conditional revert (e.g. `requireSecurityAudit: bool`) is a FLAG, not an axis. Flags don't expand the lifecycle space — they enable an extra precondition on one function. Drop flags from the matrix; they belong in rules.ts only.
+
+**Flag test — apply this concretely:** if you can describe a candidate axis as "this single boolean decision determines whether one extra branch in one function fires," it is a FLAG belonging in rules.ts — drop it from the matrix entirely. Examples in AWP:
+  - `allowResubmission` — a flag controlling whether `submitWork`'s loop accepts a second submission from the same worker. Belongs in rules, not matrix.
+  - `allowRejectAll` — a flag enabling one batch-reject path (`rejectAllSubmissions` reverts when false). Belongs in rules, not matrix.
+  - `requireSecurityAudit` — a flag enabling one extra precondition in `approveSubmission`. Belongs in rules, not matrix.
+None of these expand the lifecycle space — they each gate a single conditional inside one function. They look like axes because they're boolean inputs to createJob, but they don't multiply meaningful lifecycle paths.
+
+**Target: aim for 4-5 axes for AWP-shaped protocols.** If you have 6 and any of them is a single-bool flag enabling one branch in one function, fold it back into rules.ts.
 
 After collapse, you should have FEWER axes with MORE values per axis. If you end up with 7+ axes, you almost certainly missed a collapse.
 
