@@ -49,6 +49,17 @@ Two scenarios are the SAME if they only differ by:
   - which access-control mode (open vs approved-list vs rating-gate)
   - parameter values that don't change the call graph
 
+# Test for "config artifact" branching — apply BEFORE emitting
+
+Rename the candidate scenario by stripping any mode/config suffix (-fcfs, -timed, -hard-only, -soft-only, -approved, -rating-gate). Does the renamed ID become a duplicate of another scenario you've already drafted? If yes, they are the SAME scenario — pick one ID and use `applicability` to restrict configs.
+
+Worked examples (AWP):
+  - `s01-happy-path-fcfs` renamed → `s01-happy-path` = same as `s02-happy-path-timed` renamed → `s01-happy-path`. SAME SCENARIO. Merge into one `s01-happy-path` with `applicability: "any"`. The fact that TIMED also emits `TimedJobFinalized` is a CONFIG ARTIFACT, not a different trajectory — that extra event becomes part of the scenario's `requiredEvents` only when the cell is TIMED, encoded via applicability.
+  - `s07-competitive-workers-fcfs` renamed → `s07-competitive-workers` remains distinct (timed doesn't have the FCFS race semantics — TIMED finalization picks the first passing submission deterministically, not racewise). KEEP, set `applicability: "submissionMode == FCFS"`.
+  - `s12-timed-hard-only-auto-finalize` is genuinely a different trajectory (auto-finalize on timeout with no validator interaction, distinct from happy-path's validator-approves call graph). KEEP DISTINCT.
+
+Subset rule: if scenario A's event set is a SUPERSET of scenario B's because of a config switch (TIMED has TimedJobFinalized that FCFS lacks; rest identical), A and B are the SAME scenario. Encode the extra event with applicability, do not split.
+
 # Output
 
 For each scenario, output:
@@ -58,8 +69,17 @@ For each scenario, output:
   - description: 1-2 sentence summary of the TRAJECTORY (what events happen, in what order)
   - status: "classifiable" | "aspirational" | "deferred"
        classifiable = scanner can recognize it from observable on-chain events alone
-       aspirational = needs trace-level data (debug_traceTransaction) or future contract feature
+       aspirational = needs trace-level data (debug_traceTransaction), internal state reads, or off-chain inputs
        deferred     = needs a future contract version
+
+Mark scenarios `aspirational` when the trajectory CANNOT be classified from event logs alone. Concrete AWP examples that MUST be aspirational:
+  - `s17-rating-gate-worker-blocked` — depends on `RatingGateFailed` being observable, but that event is emitted INSIDE submitWork BEFORE its revert. The revert rolls back all logs. Only `debug_traceTransaction` can see it.
+  - `s18-rating-gate-validator-blocked` — same pattern in claimJobAsValidator.
+  - Any scenario whose trigger is "tx reverted with X" — failed transactions emit no logs to a normal scanner.
+  - Any scenario depending on `pastValidators[jobId][addr]`, `hasBeenValidator[jobId][addr]`, `mustReview[jobId][r][e]` — internal mappings the scanner doesn't index.
+  - Any scenario depending on off-chain inputs (IPFS content of a deliverable, validator reasoning) — out of scope for the chain scanner.
+
+If a scenario's trajectory passes the lifecycle test (it's a real distinct path, not a config artifact) but its detection requires any of the above, status is `aspirational`, NOT `classifiable`.
   - applicability: free-form filter expression on config axes (e.g. "validationMode != HARD_ONLY"). Use "any" for scenarios applicable to all configs.
   - requiredEvents: array of event names that MUST appear (e.g. ["JobCreated", "WorkSubmitted", "SubmissionApproved"])
   - negativeEvents: array of events that MUST NOT appear for this scenario to apply (often empty)
