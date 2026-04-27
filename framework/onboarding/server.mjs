@@ -35,7 +35,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..", "..");
 
 const PORT = Number(process.env.PORT || 7711);
-const TOKEN = process.env.ONBOARDING_SERVER_TOKEN || "";
+const TOKEN = (process.env.ONBOARDING_SERVER_TOKEN || "").trim();
 
 if (!TOKEN) {
   console.error("ONBOARDING_SERVER_TOKEN is not set — refusing to start. Generate a 32+ byte secret and set this env var.");
@@ -63,8 +63,9 @@ function serverError(res, msg) {
 }
 
 function checkAuth(req) {
-  const auth = req.headers["authorization"] || "";
-  return auth === `Bearer ${TOKEN}`;
+  const raw = String(req.headers["authorization"] || "").trim();
+  const m = raw.match(/^Bearer\s+(.+)$/i);
+  return Boolean(m && m[1].trim() === TOKEN);
 }
 
 async function readBody(req) {
