@@ -160,12 +160,28 @@ export async function run(ctx) {
   const outPath = join(outDir, "rules.ts");
   await writeFile(outPath, tsSource, "utf8");
 
+  // Aggregate per-contract LLM usage so the engine's progress emitter can
+  // record cost for this step. Without this, step 07 (the most expensive
+  // step at ~$0.27 of a $0.66 run) would log $0 because the emitter reads
+  // result.output.usage. See clients/.shared/PHASE-C-DESIGN.md C.3 + the
+  // fix-up note from Cowork after Checkpoint 1.
+  const usage = perContract.reduce((acc, c) => ({
+    input_tokens:               acc.input_tokens               + (c.usage?.input_tokens               || 0),
+    output_tokens:              acc.output_tokens              + (c.usage?.output_tokens              || 0),
+    cache_creation_input_tokens: acc.cache_creation_input_tokens + (c.usage?.cache_creation_input_tokens || 0),
+    cache_read_input_tokens:     acc.cache_read_input_tokens     + (c.usage?.cache_read_input_tokens     || 0),
+  }), {
+    input_tokens: 0, output_tokens: 0,
+    cache_creation_input_tokens: 0, cache_read_input_tokens: 0,
+  });
+
   return {
     ok: true,
     output: {
       rulesTsPath: outPath,
       totalRules: allRules.length,
       perContract,
+      usage,
     },
   };
 }
