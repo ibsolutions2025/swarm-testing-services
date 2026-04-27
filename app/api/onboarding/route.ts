@@ -81,9 +81,10 @@ export async function POST(req: NextRequest) {
           "authorization": `Bearer ${serverToken}`,
         },
         body: JSON.stringify({ runId, url, userId: user.id }),
-        // Vercel function timeout default is 10s; the VPS spawn is sub-100ms
-        // but the network round-trip + cold pm2 process can spike. 5s cap.
-        signal: AbortSignal.timeout(5000),
+        // Vercel function timeout default is 10s. Engine spawn is sub-100ms
+        // but cold pm2 starts can take longer under load. Cap at 10s — extra
+        // headroom is free since the engine runs detached either way.
+        signal: AbortSignal.timeout(10_000),
       });
       if (!r.ok) {
         const txt = await r.text().catch(() => "");
