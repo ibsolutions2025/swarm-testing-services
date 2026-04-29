@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "ES2022",
+    "declaration": false,
+    "isolatedModules": false,
+    "incremental": false,
+    "rootDir": "lib",
+    "outDir": "lib",
+    "strict": false,
+    "noImplicitAny": false
+  },
+  "include": [
+    "lib/awp/**/*.ts",
+    "lib/agentwork-protocol-*/**/*.ts",
+    "lib/insider-info-regex.ts"
+  ],
+  "exclude": ["node_modules", ".next"]
+}
