@@ -200,7 +200,16 @@ function CutoverView({ preview, onRefresh }: { preview: CutoverPreview | null; o
   return (
     <div className="space-y-4">
       <div className="rounded-md border border-zinc-800 bg-zinc-900/40 p-4">
-        <h2 className="text-sm font-semibold text-zinc-100">What greenlight will do</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="text-sm font-semibold text-zinc-100">What greenlight will do</h2>
+          <a
+            href={`/api/onboarding/bundle/${preview.runId}`}
+            className="rounded-md border border-zinc-700 px-3 py-1 text-xs text-zinc-200 hover:bg-white/5"
+            download
+          >
+            ⬇ Download bundle (.tar.gz)
+          </a>
+        </div>
         <div className="mt-2 space-y-1 text-sm text-[var(--muted)]">
           <div>Copy from <code className="text-zinc-300">runs/{preview.runId}/output/</code> with {editCount} edit{editCount === 1 ? "" : "s"} applied →</div>
           <div className="ml-4">→ <code className="text-zinc-300">{cutoverTarget.libPath}</code> ({applied.axisCount} axes, {applied.scenarioCount} scenarios, {applied.ruleCount} rules)</div>

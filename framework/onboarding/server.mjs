@@ -192,6 +192,62 @@ async function handleResult(req, res, runId) {
 }
 
 /**
+ * Bundle handler (C.6) — stream a tar.gz of one or more directories via
+ * the Linux `tar` binary. Caller (dashboard /api/onboarding/bundle/[runId])
+ * supplies paths relative to REPO_ROOT. We validate, then spawn tar and
+ * pipe its stdout to the HTTP response.
+ *
+ * Body: { paths: string[] }
+ *   Each path must match (lib|clients|framework/onboarding/runs)/<safe-name>(/.*)?
+ *   and resolve under REPO_ROOT (no escapes).
+ */
+function safeBundlePath(p) {
+  if (!p || typeof p !== "string") return null;
+  if (p.startsWith("/") || p.startsWith("\\")) return null;
+  if (p.includes("..")) return null;
+  // Allow lib/<name>/, clients/<name>/, or framework/onboarding/runs/<id>/output/...
+  if (!/^(lib\/[a-zA-Z0-9._-]+|clients\/[a-zA-Z0-9._-]+|framework\/onboarding\/runs\/[a-zA-Z0-9._-]+(\/.*)?)\/?$/.test(p)) return null;
+  return p.replace(/\/+$/, "");
+}
+
+async function handleBundle(req, res) {
+  let body;
+  try { body = await readBody(req); } catch (e) { return badRequest(res, e.message); }
+  const { paths } = body || {};
+  if (!Array.isArray(paths) || paths.length === 0) return badRequest(res, "paths array required");
+  const safePaths = [];
+  for (const p of paths) {
+    const sp = safeBundlePath(String(p));
+    if (!sp) return badRequest(res, `invalid path: ${p}`);
+    const abs = resolve(REPO_ROOT, sp);
+    if (!abs.startsWith(REPO_ROOT)) return badRequest(res, `path escapes REPO_ROOT: ${p}`);
+    let exists = false;
+    try { exists = (await stat(abs)).isDirectory() || (await stat(abs)).isFile(); } catch {}
+    if (!exists) return notFound(res, `path missing: ${p}`);
+    safePaths.push(sp);
+  }
+
+  res.writeHead(200, {
+    "content-type": "application/gzip",
+  });
+
+  // Spawn `tar -czf - <paths...>` from REPO_ROOT cwd, pipe stdout to response.
+  const child = spawn("tar", ["-czf", "-", ...safePaths], {
+    cwd: REPO_ROOT,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.pipe(res);
+  child.stderr.on("data", (d) => console.error(`[onboarding-server tar stderr] ${d}`));
+  child.on("error", (e) => {
+    console.error("[onboarding-server tar spawn error]", e);
+    if (!res.writableEnded) res.end();
+  });
+  child.on("close", (code) => {
+    if (code !== 0) console.error(`[onboarding-server tar exit ${code}] paths=${safePaths.join(",")}`);
+  });
+}
+
+/**
  * Cutover handler — write the customer's edited engine output to the canonical
  * lib/<targetSlug>/ + clients/<targetSlug>/ paths on the VPS. C.7 of Phase C.
  *
@@ -347,6 +403,9 @@ const httpServer = createServer(async (req, res) => {
     }
     if (path === "/onboarding/cutover" && req.method === "POST") {
       return await handleCutover(req, res);
+    }
+    if (path === "/onboarding/bundle" && req.method === "POST") {
+      return await handleBundle(req, res);
     }
     if (req.method === "GET") {
       const m = path.match(/^\/onboarding\/result\/([a-zA-Z0-9._-]+)$/);
