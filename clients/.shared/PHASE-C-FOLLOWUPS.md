@@ -103,3 +103,67 @@ the boolean-flag-not-axis case, but doesn't catch this collapse case.
 **Disposition:** These are Phase E backlog items. Not blocking D.3
 (the per-customer HITL fix is sufficient to validate the cutover-driven
 swarm). Address when the engine prompt iteration lands as its own phase.
+
+### E.4 Engine output must include runtime helpers — BLOCKS D.3
+
+**Bug seen:** Phase D.3 pre-flight check found that the existing
+`framework/hlo-daemon.mjs` imports 7 names from `lib/awp/index.js`:
+
+  CONTRACT_ADDRESSES, ALL_CONFIGS, CLASSIFIABLE_SCENARIO_IDS,
+  parseConfigKey, configToParams, isCellApplicable, checkAgentEligibility
+
+The first 3 are DATA — engine output has them. The last 4 are RUNTIME
+HELPERS the fixture provides as hand-written TS functions:
+
+- `parseConfigKey(key)` — string → typed params (split + axis-typed)
+- `configToParams(key)` — string → full V15.createJob params struct
+- `isCellApplicable(scenarioId, configParams)` — applicability filter
+- `checkAgentEligibility(agent, jobState, action)` — V15 rules pre-check
+
+Engine emits the input data (AXES.maps_to, ALL_SCENARIOS.applicability,
+RULES) but NOT the functions that walk them. Trying to swap
+`lib/awp/` → `lib/agentwork-protocol-23becc/` in the HLO daemon
+import would fail at module load with "import not found".
+
+**Three resolution paths:**
+
+A. **Engine emits the helpers.** Steps 09 (matrix), 10 (scenarios),
+   and 07 (rules) prompts each grow a "render the runtime helper
+   functions consumers need" instruction. Helpers become part of the
+   engine's templated output — same lines every time, parameterized
+   on the lib's specific axes/scenarios/rules. Real engine prompt
+   iteration. Highest fidelity to the "drop-in lib" promise.
+
+B. **Cutover renderer injects a shim.** During C.7, the cutover layer
+   appends a known-good helper module (or appends to index.js) that
+   wraps the engine's data with the 4 helpers. Helper code is in the
+   STS repo, not the engine output, but the cutover stitches them
+   into every greenlit lib. Lower engineering cost, but the seam means
+   "engine output" alone isn't drop-in dispatchable — needs cutover
+   to assemble the final shape.
+
+C. **Refactor HLO daemon to use only data.** Drop the 4 helper
+   imports; HLO synthesizes the same logic inline from AXES.maps_to
+   etc. Smallest code surface, but every consumer of the lib (HLO,
+   scanner, auditor) eventually rewrites the helpers, defeating the
+   shared-knowledge-tree principle.
+
+**Recommendation:** A is the "real" fix, B is the unblock-D.3 hack.
+Path B can ship in a few hours of shim work; Path A is multi-day
+prompt iteration. Either could land in Phase E.
+
+**Why this didn't surface in D.1 or D.2:**
+- D.1 imports `lib/<slug>/index.js` and inspects exports —
+  succeeded because the imports it needs (AXES, ALL_SCENARIOS,
+  PREDICATES, RULES, EVENT_SIGS) are all DATA, present in engine
+  output.
+- D.2 reimplements the helpers inline in `shadow-hlo.mjs` (it was
+  a self-contained simulation). It never tried to import them from
+  the lib.
+- D.3 is the first step that would touch the daemon's actual import
+  surface, so this is where the gap lights up.
+
+**Disposition:** D.3 swap is blocked until A or B lands. Phase D
+results stand: engine output is *structurally sound* (D.1) and
+*dispatchable as data* (D.2). The swap-vs-fixture experiment needs
+a small bridging step before it can run.
