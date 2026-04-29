@@ -150,6 +150,34 @@ export function EditorTabs({ runId }: { runId: string }) {
 }
 
 function CutoverView({ preview, onRefresh }: { preview: CutoverPreview | null; onRefresh: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ libDir: string; clientsDir: string; libFiles: string[]; clientsFiles: string[]; editCount: number } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function greenlight() {
+    if (!preview) return;
+    if (!confirm(
+      `Greenlight cutover?\n\n` +
+      `This writes lib/${preview.slug}-${preview.cutoverTarget.userShort}/ + clients/${preview.slug}-${preview.cutoverTarget.userShort}/ on the VPS ` +
+      `with ${preview.editCount} edit(s) applied.\n\nNothing is auto-started — HLO activation is a manual ops step.`
+    )) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch("/api/onboarding/greenlight", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ runId: preview.runId }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setResult(j);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!preview) {
     return (
       <div className="space-y-3">
@@ -209,11 +237,37 @@ function CutoverView({ preview, onRefresh }: { preview: CutoverPreview | null; o
       )}
 
       <div className="rounded-md border border-blue-900/40 bg-blue-950/10 p-4 text-sm">
-        <h3 className="font-medium text-blue-200">Greenlight is C.7</h3>
+        <h3 className="font-medium text-blue-200">Greenlight</h3>
         <p className="mt-1 text-blue-100/80">
-          Greenlight (the &quot;Start swarm&quot; button) is shipped in C.7 — coming next. For now, this preview shows
-          what greenlight will do once it lands. Isaiah greenlights the cutover at C.7, not here.
+          Cutover writes the lib + clients directories above on the VPS. The HLO daemon is NOT auto-started —
+          production swarm activation is a manual ops step that comes later.
         </p>
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={greenlight}
+            disabled={busy || !!result}
+            className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {busy ? "Cutting over…" : result ? "Greenlit ✓" : "Greenlight cutover"}
+          </button>
+          {err && <span className="text-sm text-red-300">{err}</span>}
+        </div>
+        {result && (
+          <div className="mt-3 rounded-md border border-emerald-900/40 bg-emerald-950/20 p-3 text-xs text-emerald-200">
+            <div className="font-medium text-emerald-100">Cutover complete</div>
+            <div className="mt-1 space-y-0.5">
+              <div>
+                wrote <code className="text-emerald-100">{result.libDir}/</code> ({result.libFiles.length} files: {result.libFiles.join(", ")})
+              </div>
+              <div>
+                wrote <code className="text-emerald-100">{result.clientsDir}/</code> ({result.clientsFiles.length} files: {result.clientsFiles.join(", ")})
+              </div>
+              <div>{result.editCount} customer edit{result.editCount === 1 ? "" : "s"} applied. Run status: <code className="text-emerald-100">greenlit</code></div>
+              <div className="mt-1 text-emerald-300/80">HLO is NOT auto-started. Manual ops trigger comes next.</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

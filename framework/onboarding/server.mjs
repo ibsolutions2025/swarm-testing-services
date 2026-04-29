@@ -27,7 +27,7 @@
  */
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat, mkdir, writeFile, rm, cp } from "node:fs/promises";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -154,13 +154,13 @@ async function handleResult(req, res, runId) {
   const libPath = join(outDir, "lib", slug);
   const auditPath = join(outDir, "clients", slug, "AUDIT-AND-DESIGN.md");
 
-  // Lib tree summary — file sizes for all files; FULL contents only for the
-  // three files the HITL editor needs (matrix, scenarios, rules). Other files
-  // (cell-defs, contracts, events, state-machine, index) get sizes only —
-  // their full content is for the bundle export (C.6) or greenlight (C.7).
+  // Lib tree summary — sizes + FULL contents for every file. C.5 needs
+  // matrix/scenarios/rules to render the editor; C.7 needs everything for
+  // the cutover write; C.6 needs everything for the bundle export. Total
+  // size is small (~80KB across 8 files) so always returning content is
+  // simpler than juggling multiple endpoints.
   const libFiles = {};
   const libContents = {};
-  const EDITOR_FILES = new Set(["matrix.ts", "scenarios.ts", "rules.ts"]);
   try {
     const entries = await readdir(libPath);
     for (const f of entries) {
@@ -169,9 +169,7 @@ async function handleResult(req, res, runId) {
         const s = await stat(filePath);
         if (!s.isFile()) continue;
         libFiles[f] = s.size;
-        if (EDITOR_FILES.has(f)) {
-          libContents[f] = await readFile(filePath, "utf8");
-        }
+        libContents[f] = await readFile(filePath, "utf8");
       } catch { /* skip */ }
     }
   } catch { /* lib subdir missing */ }
@@ -193,6 +191,145 @@ async function handleResult(req, res, runId) {
   }));
 }
 
+/**
+ * Cutover handler — write the customer's edited engine output to the canonical
+ * lib/<targetSlug>/ + clients/<targetSlug>/ paths on the VPS. C.7 of Phase C.
+ *
+ * Body: {
+ *   runId,                 // source run id; we read from runs/<runId>/output/
+ *   sourceSlug,            // engine-discovered slug (e.g. "agentwork-protocol")
+ *   targetLibDir,          // relative path: "lib/agentwork-protocol-23becc"
+ *   targetClientsDir,      // relative path: "clients/agentwork-protocol-23becc"
+ *   files,                 // map of relpath-within-target → full content;
+ *                          //   keys must start with targetLibDir or targetClientsDir
+ * }
+ *
+ * Strategy:
+ * 1. Resolve source dir (runs/<runId>/output/lib/<sourceSlug>/ +
+ *    runs/<runId>/output/clients/<sourceSlug>/) — must exist
+ * 2. Resolve target dirs (relative to REPO_ROOT)
+ * 3. Wipe + recreate target dirs (idempotent — re-cutover replaces)
+ * 4. For each file in source dir, write the override (if provided) or
+ *    copy verbatim
+ * 5. Return { libFiles, clientsFiles, libDir, clientsDir }
+ *
+ * Path safety: targetLibDir/targetClientsDir must:
+ *   - be relative (no leading slash)
+ *   - resolve under REPO_ROOT
+ *   - match the dashboard's regex shape so clients can't write arbitrary paths
+ */
+function safeRelPath(p) {
+  if (!p || typeof p !== "string") return null;
+  if (p.startsWith("/") || p.startsWith("\\")) return null;
+  if (p.includes("..")) return null;
+  if (!/^(lib|clients)\/[a-zA-Z0-9._-]+\/?$/.test(p)) return null;
+  return p.replace(/\/+$/, "");
+}
+
+async function handleCutover(req, res) {
+  let body;
+  try { body = await readBody(req); } catch (e) { return badRequest(res, e.message); }
+  const { runId, sourceSlug, targetLibDir, targetClientsDir, files } = body || {};
+  if (!runId || !sourceSlug) return badRequest(res, "runId and sourceSlug required");
+  const safeRunId = sanitizeRunId(String(runId));
+  if (!safeRunId) return badRequest(res, "invalid runId");
+  if (!/^[a-zA-Z0-9._-]+$/.test(String(sourceSlug))) return badRequest(res, "invalid sourceSlug");
+  const libRel = safeRelPath(targetLibDir);
+  const clientsRel = safeRelPath(targetClientsDir);
+  if (!libRel || !clientsRel) return badRequest(res, "targetLibDir/targetClientsDir invalid");
+  if (!files || typeof files !== "object") return badRequest(res, "files map required");
+
+  const sourceLib = resolve(__dirname, "runs", safeRunId, "output", "lib", String(sourceSlug));
+  const sourceClients = resolve(__dirname, "runs", safeRunId, "output", "clients", String(sourceSlug));
+  let sourceLibOk = false, sourceClientsOk = false;
+  try { sourceLibOk = (await stat(sourceLib)).isDirectory(); } catch {}
+  try { sourceClientsOk = (await stat(sourceClients)).isDirectory(); } catch {}
+  if (!sourceLibOk) return notFound(res, `source lib dir missing: ${sourceLib}`);
+
+  const targetLib = resolve(REPO_ROOT, libRel);
+  const targetClients = resolve(REPO_ROOT, clientsRel);
+  // Sanity: target paths must be inside REPO_ROOT (prevent escapes via symlinks
+  // even if regex passed)
+  if (!targetLib.startsWith(REPO_ROOT) || !targetClients.startsWith(REPO_ROOT)) {
+    return badRequest(res, "target paths escape REPO_ROOT");
+  }
+
+  // Wipe + recreate target dirs (idempotent — re-greenlight overwrites)
+  await rm(targetLib, { recursive: true, force: true });
+  await rm(targetClients, { recursive: true, force: true });
+  await mkdir(targetLib, { recursive: true });
+  await mkdir(targetClients, { recursive: true });
+
+  // Build override key set (relpath → content)
+  const overrideMap = new Map();
+  for (const [k, v] of Object.entries(files)) {
+    if (typeof v !== "string") continue;
+    overrideMap.set(String(k).replace(/\\/g, "/"), v);
+  }
+
+  // Copy lib files: for each file in source lib, write override or original
+  const libWritten = [];
+  for (const f of await readdir(sourceLib)) {
+    const stat1 = await stat(join(sourceLib, f));
+    if (!stat1.isFile()) continue;
+    const targetRelKey = `${libRel}/${f}`;
+    const targetPath = join(targetLib, f);
+    if (overrideMap.has(targetRelKey)) {
+      await writeFile(targetPath, overrideMap.get(targetRelKey), "utf8");
+    } else {
+      const content = await readFile(join(sourceLib, f), "utf8");
+      await writeFile(targetPath, content, "utf8");
+    }
+    libWritten.push(f);
+  }
+
+  // Copy clients files (typically just AUDIT-AND-DESIGN.md)
+  const clientsWritten = [];
+  if (sourceClientsOk) {
+    for (const f of await readdir(sourceClients)) {
+      const stat2 = await stat(join(sourceClients, f));
+      if (!stat2.isFile()) continue;
+      const targetRelKey = `${clientsRel}/${f}`;
+      const targetPath = join(targetClients, f);
+      if (overrideMap.has(targetRelKey)) {
+        await writeFile(targetPath, overrideMap.get(targetRelKey), "utf8");
+      } else {
+        const content = await readFile(join(sourceClients, f), "utf8");
+        await writeFile(targetPath, content, "utf8");
+      }
+      clientsWritten.push(f);
+    }
+  }
+
+  // Also write any override-only files (e.g. dashboard generated something
+  // not in source — defensive, currently unused)
+  for (const [k, v] of overrideMap.entries()) {
+    if (k.startsWith(libRel + "/")) {
+      const f = k.slice(libRel.length + 1);
+      if (!libWritten.includes(f)) {
+        await writeFile(join(targetLib, f), v, "utf8");
+        libWritten.push(f);
+      }
+    } else if (k.startsWith(clientsRel + "/")) {
+      const f = k.slice(clientsRel.length + 1);
+      if (!clientsWritten.includes(f)) {
+        await writeFile(join(targetClients, f), v, "utf8");
+        clientsWritten.push(f);
+      }
+    }
+  }
+
+  console.log(`[onboarding-server] cutover runId=${safeRunId} → ${libRel} (${libWritten.length} files), ${clientsRel} (${clientsWritten.length} files)`);
+  res.writeHead(200, { "content-type": "application/json" });
+  res.end(JSON.stringify({
+    ok: true,
+    libDir: libRel,
+    clientsDir: clientsRel,
+    libFiles: libWritten,
+    clientsFiles: clientsWritten,
+  }));
+}
+
 const httpServer = createServer(async (req, res) => {
   // Trim query string + trailing slash for matching
   const path = (req.url || "").split("?")[0].replace(/\/+$/, "") || "/";
@@ -207,6 +344,9 @@ const httpServer = createServer(async (req, res) => {
   try {
     if (path === "/onboarding/start" && req.method === "POST") {
       return await handleStart(req, res);
+    }
+    if (path === "/onboarding/cutover" && req.method === "POST") {
+      return await handleCutover(req, res);
     }
     if (req.method === "GET") {
       const m = path.match(/^\/onboarding\/result\/([a-zA-Z0-9._-]+)$/);
