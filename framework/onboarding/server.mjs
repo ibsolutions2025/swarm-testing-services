@@ -154,15 +154,24 @@ async function handleResult(req, res, runId) {
   const libPath = join(outDir, "lib", slug);
   const auditPath = join(outDir, "clients", slug, "AUDIT-AND-DESIGN.md");
 
-  // Lib tree summary — file sizes only, not content (full content is fetched
-  // separately via the bundle export endpoint at C.6).
+  // Lib tree summary — file sizes for all files; FULL contents only for the
+  // three files the HITL editor needs (matrix, scenarios, rules). Other files
+  // (cell-defs, contracts, events, state-machine, index) get sizes only —
+  // their full content is for the bundle export (C.6) or greenlight (C.7).
   const libFiles = {};
+  const libContents = {};
+  const EDITOR_FILES = new Set(["matrix.ts", "scenarios.ts", "rules.ts"]);
   try {
     const entries = await readdir(libPath);
     for (const f of entries) {
       try {
-        const s = await stat(join(libPath, f));
-        if (s.isFile()) libFiles[f] = s.size;
+        const filePath = join(libPath, f);
+        const s = await stat(filePath);
+        if (!s.isFile()) continue;
+        libFiles[f] = s.size;
+        if (EDITOR_FILES.has(f)) {
+          libContents[f] = await readFile(filePath, "utf8");
+        }
       } catch { /* skip */ }
     }
   } catch { /* lib subdir missing */ }
@@ -177,6 +186,7 @@ async function handleResult(req, res, runId) {
     runId: safeRunId,
     slug,
     libFiles,
+    libContents,
     auditDoc,
     auditDocPath: auditPath,
     libPath,
