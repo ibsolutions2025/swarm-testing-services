@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";
 
 type StepEvent = {
@@ -178,9 +179,20 @@ export function OnboardingStepper({ runId }: { runId: string }) {
         })}
       </ol>
 
-      {status === "complete" && (
+      {(status === "complete" || status === "greenlit") && (
         <div className="mt-6 rounded-md border border-emerald-900 bg-emerald-950/30 p-4 text-sm text-emerald-200">
-          Engine complete. Total cost: {formatCost(run?.total_cost_usd)}. Result viewer + HITL editor land in C.5.
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              Engine complete. Total cost: {formatCost(run?.total_cost_usd)}.
+              {run?.slug && <> Slug: <code className="text-emerald-100">{run.slug}</code>.</>}
+            </div>
+            <Link
+              href={`/hire/runs/${runId}/edit`}
+              className="rounded-md bg-emerald-600 px-3 py-1 text-sm font-medium text-black hover:bg-emerald-500"
+            >
+              Edit matrix / scenarios →
+            </Link>
+          </div>
         </div>
       )}
       {status === "failed" && (
