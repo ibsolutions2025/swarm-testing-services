@@ -20,11 +20,28 @@
  * the intentional safety boundary in PHASE-C-DESIGN.md C.7.
  */
 import { NextRequest, NextResponse } from "next/server";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { createServerClient } from "@/lib/supabase-server";
 import { applyEdits, type Axis, type Scenario, type Rule, type EditRow } from "@/lib/onboarding-patches";
 import { buildOverrideFiles } from "@/lib/cutover-render";
 
 export const dynamic = "force-dynamic";
+
+// E.4 Path B — read the runtime-helpers template once per request.
+// Located alongside the engine framework so the same template applies
+// to every greenlit lib. Lives in the dashboard's deployed bundle.
+async function loadRuntimeHelpersTemplate(): Promise<string | null> {
+  const templatePath = resolve(process.cwd(), "framework/onboarding/lib/runtime-helpers.template.ts");
+  try {
+    return await readFile(templatePath, "utf8");
+  } catch {
+    // Template missing — fall back to no-shim cutover. Greenlight still
+    // succeeds; HLO swap would fail at module-load until the helper
+    // template is shipped. Logged + reported in the response.
+    return null;
+  }
+}
 
 function extractJsonArray(src: string, exportName: string): unknown[] {
   const re = new RegExp(`export const ${exportName}(?:\\s*:[^=]+)?\\s*=\\s*\\[`);
@@ -126,8 +143,13 @@ export async function POST(req: NextRequest) {
 
   const applied = applyEdits(baseline, (editRows ?? []) as EditRow[]);
 
+  // E.4 Path B — load the runtime-helpers template + pass through to
+  // buildOverrideFiles, which will add lib/<targetSlug>/runtime-helpers.ts
+  // and append re-exports to index.ts.
+  const helperTemplate = await loadRuntimeHelpersTemplate();
+
   // Compute override files
-  const files = buildOverrideFiles(libContents, auditDoc, applied, targetLibDir, targetClientsDir);
+  const files = buildOverrideFiles(libContents, auditDoc, applied, targetLibDir, targetClientsDir, helperTemplate);
 
   // Send to VPS for atomic write
   let vpsResult: { libDir: string; clientsDir: string; libFiles: string[]; clientsFiles: string[] };
@@ -183,6 +205,7 @@ export async function POST(req: NextRequest) {
     libFiles: vpsResult.libFiles,
     clientsFiles: vpsResult.clientsFiles,
     editCount: (editRows ?? []).length,
+    runtimeHelpersInjected: helperTemplate != null,
     note: "Cutover complete. HLO is NOT auto-started — production activation is a manual ops step.",
   });
 }

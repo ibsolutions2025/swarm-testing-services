@@ -95,7 +95,8 @@ export function buildOverrideFiles(
   auditDoc: string | null,
   applied: { axes: Axis[]; scenarios: Scenario[]; ruleFlags: RuleFlag[]; ruleMissing: RuleMissing[] },
   libRel: string,
-  clientsRel: string
+  clientsRel: string,
+  runtimeHelpersTemplate: string | null = null
 ): Record<string, string> {
   const out: Record<string, string> = {};
 
@@ -117,6 +118,34 @@ export function buildOverrideFiles(
   const appendix = buildAuditAppendix(applied.ruleFlags, applied.ruleMissing);
   if (appendix && auditDoc != null) {
     out[`${clientsRel}/AUDIT-AND-DESIGN.md`] = auditDoc + appendix;
+  }
+
+  // E.4 Path B — runtime helper shim. The engine output lacks the 4
+  // pure helper functions HLO daemon imports (parseConfigKey,
+  // configToParams, isCellApplicable, checkAgentEligibility). Cutover
+  // injects framework/onboarding/lib/runtime-helpers.template.ts as
+  // lib/<targetSlug>/runtime-helpers.ts and appends a re-export block
+  // to the lib's index.ts. After this, the lib is drop-in compatible
+  // with the existing HLO consumer code.
+  if (runtimeHelpersTemplate) {
+    out[`${libRel}/runtime-helpers.ts`] = runtimeHelpersTemplate;
+
+    // Append re-exports to index.ts so HLO's named imports resolve.
+    const indexSrc = libContents["index.ts"] || "";
+    const reexportBlock = [
+      "",
+      "// E.4 Path B — runtime helpers stitched in at greenlight cutover.",
+      "// See clients/.shared/PHASE-C-FOLLOWUPS.md for the engine-prompt",
+      "// follow-up that would emit these natively (Path A).",
+      "export {",
+      "  parseConfigKey,",
+      "  configToParams,",
+      "  isCellApplicable,",
+      "  checkAgentEligibility,",
+      "} from \"./runtime-helpers.js\";",
+      "",
+    ].join("\n");
+    out[`${libRel}/index.ts`] = indexSrc.replace(/\s*$/, "") + "\n" + reexportBlock;
   }
 
   return out;

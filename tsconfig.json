@@ -22,6 +22,7 @@
   "exclude": [
     "node_modules",
     "framework/onboarding/runs",
-    "lib/agentwork-protocol"
+    "lib/agentwork-protocol",
+    "framework/onboarding/lib/runtime-helpers.template.ts"
   ]
 }
