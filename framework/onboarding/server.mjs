@@ -22,8 +22,12 @@
  * Run as pm2 entry on the VPS:
  *   ONBOARDING_SERVER_TOKEN=<secret> \
  *   STS_SUPABASE_URL=... STS_SUPABASE_KEY=... \
- *   ANTHROPIC_API_KEY=... GITHUB_PAT_RW=... \
+ *   CHUTES_API_KEY=... OPENROUTER_API_KEY=... GITHUB_PAT_RW=... \
  *     pm2 start framework/onboarding/server.mjs --name onboarding-server
+ *
+ * The spawned engine inherits process.env, so the engine picks up
+ * CHUTES_API_KEY / OPENROUTER_API_KEY directly. Anthropic auth is
+ * intentionally NOT passed to agent runtime.
  */
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";

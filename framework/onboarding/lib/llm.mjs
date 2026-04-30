@@ -1,91 +1,49 @@
 /**
  * llm.mjs — model-agnostic LLM client for Onboarding Engine LLM steps.
  *
+ * Anthropic is intentionally NOT a provider here. Agent-side code (engine,
+ * auditor, swarm) runs only on open-source models via Chutes (primary) or
+ * OpenRouter (fallback). Anthropic auth is reserved for human-driven dev
+ * tools (Claude Code, Cowork) — never imported by agent runtime.
+ *
  * Routes to whichever provider has a working API key, in this order:
- *   1. Anthropic (ANTHROPIC_API_KEY)               — claude-sonnet-4-6
- *   2. OpenRouter (OPENROUTER_API_KEY)             — anthropic/claude-sonnet-4
- *   3. Chutes (CHUTES_API_KEY)                     — moonshotai/Kimi-K2.6-TEE
- *      (used when first two are unset; Kimi is a Sonnet-class extractor +
- *       openclaw.json registers it as the default subagent model)
+ *   1. Chutes (CHUTES_API_KEY)         — moonshotai/Kimi-K2.6-TEE
+ *   2. OpenRouter (OPENROUTER_API_KEY) — moonshotai/kimi-k2-instruct
  *
  * Override model via ENGINE_MODEL env. Override provider via ENGINE_PROVIDER
- * env (anthropic|openrouter|chutes).
+ * env (chutes|openrouter).
  *
  * Single entry point: callSonnet({ system, user, maxTokens, temperature }).
- * Returns { ok, content, usage, model, elapsedMs }. The function is named
- * callSonnet for historical reasons; the actual model in use is whatever
- * the auto-selected provider serves.
+ * Returns { ok, content, usage, model, elapsedMs }. Function name retained
+ * for back-compat with existing callers; the actual model in use is
+ * whichever Kimi the auto-selected provider serves.
  *
  * No prompt caching yet (Phase B v1 keeps it simple — each step is one
  * isolated LLM turn).
  */
 
-const ANTHROPIC_BASE = process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com";
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 const CHUTES_BASE = "https://llm.chutes.ai/v1";
 
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || "";
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || "";
 const CHUTES_KEY = process.env.CHUTES_API_KEY || "";
 
 function pickProvider() {
   const explicit = (process.env.ENGINE_PROVIDER || "").toLowerCase();
-  if (explicit === "anthropic" && ANTHROPIC_KEY) return "anthropic";
-  if (explicit === "openrouter" && OPENROUTER_KEY) return "openrouter";
   if (explicit === "chutes" && CHUTES_KEY) return "chutes";
-  // Default preference order per design spec: Sonnet 4.6 first, OpenRouter
-  // Sonnet routing second, Chutes/Kimi only as last-resort fallback (Kimi
-  // costs reasoning tokens + has 5-7 min per LLM call which timed out
-  // step 10 in Phase B v1 — see Phase B Iteration 1 report).
-  if (ANTHROPIC_KEY) return "anthropic";
-  if (OPENROUTER_KEY) return "openrouter";
+  if (explicit === "openrouter" && OPENROUTER_KEY) return "openrouter";
+  // Default preference order: Chutes first (Kimi K2.6-TEE), OpenRouter
+  // fallback (Kimi K2 instruct). Anthropic is intentionally absent.
   if (CHUTES_KEY) return "chutes";
+  if (OPENROUTER_KEY) return "openrouter";
   return null;
 }
 
 function pickModel(provider) {
   if (process.env.ENGINE_MODEL) return process.env.ENGINE_MODEL;
-  // Sonnet 4.6 per design spec section 3 + 6.B
-  if (provider === "anthropic") return "claude-sonnet-4-5-20250929";
-  if (provider === "openrouter") return "anthropic/claude-sonnet-4-5";
   if (provider === "chutes") return "moonshotai/Kimi-K2.6-TEE";
+  if (provider === "openrouter") return "moonshotai/kimi-k2-instruct";
   return null;
-}
-
-async function callAnthropic({ system, user, maxTokens, temperature, model, label }) {
-  const url = `${ANTHROPIC_BASE.replace(/\/+$/, "")}/v1/messages`;
-  const t0 = Date.now();
-  const r = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      temperature,
-      system: system || "",
-      messages: [{ role: "user", content: user }],
-    }),
-  });
-  if (!r.ok) {
-    const txt = await r.text().catch(() => "");
-    return { ok: false, error: `[${label}] anthropic HTTP ${r.status}: ${txt.slice(0, 400)}`, elapsedMs: Date.now() - t0 };
-  }
-  const json = await r.json();
-  const blocks = Array.isArray(json.content) ? json.content : [];
-  const text = blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
-  return {
-    ok: true,
-    content: text,
-    usage: json.usage || {},
-    stopReason: json.stop_reason || null,
-    model: json.model || model,
-    provider: "anthropic",
-    elapsedMs: Date.now() - t0,
-  };
 }
 
 async function callOpenAICompat({ baseUrl, apiKey, system, user, maxTokens, temperature, model, label, provider }) {
@@ -117,7 +75,16 @@ async function callOpenAICompat({ baseUrl, apiKey, system, user, maxTokens, temp
   }
   const json = await r.json();
   const choice = (json.choices && json.choices[0]) || {};
-  const text = (choice.message && choice.message.content) || "";
+  // Reasoning models (Kimi K2.6-TEE on Chutes) put the final answer in
+  // message.reasoning_content / message.reasoning, with content === null.
+  const msg = choice.message || {};
+  const text =
+    (typeof msg.content === "string" && msg.content.length > 0
+      ? msg.content
+      : null) ??
+    (typeof msg.reasoning_content === "string" ? msg.reasoning_content : null) ??
+    (typeof msg.reasoning === "string" ? msg.reasoning : "") ??
+    "";
   return {
     ok: true,
     content: typeof text === "string" ? text : "",
@@ -130,9 +97,6 @@ async function callOpenAICompat({ baseUrl, apiKey, system, user, maxTokens, temp
 }
 
 async function dispatchOnce({ provider, system, user, maxTokens, temperature, model, label }) {
-  if (provider === "anthropic") {
-    return await callAnthropic({ system, user, maxTokens, temperature, model, label });
-  }
   if (provider === "openrouter") {
     return await callOpenAICompat({
       baseUrl: OPENROUTER_BASE, apiKey: OPENROUTER_KEY,
@@ -161,7 +125,7 @@ export async function callSonnet({
   }
   const provider = pickProvider();
   if (!provider) {
-    return { ok: false, error: "no LLM provider available — set ANTHROPIC_API_KEY, OPENROUTER_API_KEY, or CHUTES_API_KEY" };
+    return { ok: false, error: "no LLM provider available — set CHUTES_API_KEY or OPENROUTER_API_KEY" };
   }
   const m = model || pickModel(provider);
 

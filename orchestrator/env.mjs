@@ -17,10 +17,12 @@ export const env = {
   SUPABASE_URL: process.env.SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
-  // Default to a capable tool-calling model. Override via env for cheaper runs.
-  MODEL_MATRIX: process.env.MODEL_MATRIX || "anthropic/claude-sonnet-4",
-  MODEL_PERSONA: process.env.MODEL_PERSONA || "anthropic/claude-sonnet-4",
-  MODEL_RUN: process.env.MODEL_RUN || "anthropic/claude-haiku-4-5",
+  // Open-source model defaults (Kimi K2 via OpenRouter). Anthropic is
+  // intentionally absent from agent runtime — see framework/onboarding/lib/llm.mjs
+  // for the broader policy. Override via env for any specific run.
+  MODEL_MATRIX: process.env.MODEL_MATRIX || "moonshotai/kimi-k2-instruct",
+  MODEL_PERSONA: process.env.MODEL_PERSONA || "moonshotai/kimi-k2-instruct",
+  MODEL_RUN: process.env.MODEL_RUN || "moonshotai/kimi-k2-instruct",
   POLL_INTERVAL_MS: Number(process.env.POLL_INTERVAL_MS || 10_000),
   MAX_ROWS: Number(process.env.MAX_ROWS || 5),
   MAX_COLUMNS: Number(process.env.MAX_COLUMNS || 6),
