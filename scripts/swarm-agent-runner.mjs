@@ -4,22 +4,36 @@
  *
  * Single entrypoint. Given a persona (Spark/Grind/Judge/Chaos/Scout/Flash/
  * Bridge), a task type (create|submit|review), and a context object, makes
- * an OpenRouter chat-completions call using the persona's SOUL.md as the
- * system prompt, and returns a typed JSON object. No viem, no chain, no
+ * a chat-completions call using the persona's SOUL.md as the system
+ * prompt, and returns a typed JSON object. No viem, no chain, no
  * Supabase — pure LLM orchestration. The caller writes the resulting tx.
  *
- * Cost envelope: Gemma-4 27B via OpenRouter, cap 600 output tokens, cap 3
- * turns. Expected ~$5/day at the current swarm cadence.
+ * Provider routing (2026-04-30):
+ *   AGENT_RUNNER_PROVIDER=chutes  (default) → Chutes Kimi K2.6-TEE
+ *   AGENT_RUNNER_PROVIDER=openrouter        → OpenRouter (legacy, fallback)
+ * If chutes is selected but CHUTES_API_KEY is missing AND
+ * OPENROUTER_API_KEY is set, the runner auto-falls-back to openrouter
+ * with a warning rather than throwing.
+ *
+ * Cost envelope: Kimi K2.6-TEE via Chutes is roughly an order of
+ * magnitude cheaper than Anthropic Sonnet and ~3-5x cheaper than the
+ * old Gemma-4 27B path. Cap 1500 output tokens (Kimi reasoning chains
+ * eat ~500 tokens before emitting the final JSON), cap 3 turns.
+ * Expected cost <$1/day at the current swarm cadence (~7 agents × 80
+ * active jobs × ~3 LLM calls per lifecycle).
  *
  * Insider-info clean: every prompt string is regex-scanned for leak
  * patterns (scenario IDs, validation-mode enums, "test"/"matrix"/etc.)
- * before being sent. Any match throws — we'd rather hard-fail in cron than
- * silently bias the swarm.
+ * before being sent. Any match throws — we'd rather hard-fail in cron
+ * than silently bias the swarm.
  *
  * Env:
- *   OPENROUTER_API_KEY   — required
- *   AGENTS_BASE_DIR      — optional, defaults to /root/test-swarm
- *   AGENT_RUNNER_MODEL   — optional, defaults to google/gemma-4-27b-it
+ *   CHUTES_API_KEY        — required when AGENT_RUNNER_PROVIDER=chutes
+ *   OPENROUTER_API_KEY    — required when AGENT_RUNNER_PROVIDER=openrouter
+ *                           (or as fallback when Chutes key missing)
+ *   AGENT_RUNNER_PROVIDER — chutes | openrouter (default: chutes)
+ *   AGENT_RUNNER_MODEL    — overrides per-provider default
+ *   AGENTS_BASE_DIR       — defaults to /root/test-swarm
  */
 
 import { readFileSync } from "fs";
@@ -41,12 +55,57 @@ const PERSONA_TO_N = new Map([
 ]);
 
 const DEFAULT_AGENTS_BASE = process.env.AGENTS_BASE_DIR || "/root/test-swarm";
-const DEFAULT_MODEL =
-  process.env.AGENT_RUNNER_MODEL || "google/gemma-4-27b-it";
+
+// ============================================================
+// Provider config
+// ============================================================
+const PROVIDERS = {
+  chutes: {
+    endpoint: "https://llm.chutes.ai/v1/chat/completions",
+    apiKeyEnv: "CHUTES_API_KEY",
+    defaultModel: "moonshotai/Kimi-K2.6-TEE",
+    headers: () => ({})
+  },
+  openrouter: {
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    apiKeyEnv: "OPENROUTER_API_KEY",
+    defaultModel: "google/gemma-4-27b-it",
+    headers: () => ({
+      "HTTP-Referer": "https://swarm-testing-services.vercel.app",
+      "X-Title": "STS swarm agent runner"
+    })
+  }
+};
+
+function pickProvider() {
+  const requested = (process.env.AGENT_RUNNER_PROVIDER || "chutes").toLowerCase();
+  if (!PROVIDERS[requested]) {
+    throw new Error(
+      `[agent-runner] unknown AGENT_RUNNER_PROVIDER=${requested} ` +
+        `(allowed: ${Object.keys(PROVIDERS).join(", ")})`
+    );
+  }
+  // Fallback: if chutes selected but key missing, drop to openrouter when possible
+  if (
+    requested === "chutes" &&
+    !process.env.CHUTES_API_KEY &&
+    process.env.OPENROUTER_API_KEY
+  ) {
+    console.log(
+      "[agent-runner] CHUTES_API_KEY missing — falling back to openrouter"
+    );
+    return "openrouter";
+  }
+  return requested;
+}
+
+function defaultModelFor(provider) {
+  return process.env.AGENT_RUNNER_MODEL || PROVIDERS[provider].defaultModel;
+}
 
 // ============================================================
 // Insider-info regex scanner — mirrors lib/insider-audit.ts patterns.
-// Every prompt string must pass this before hitting OpenRouter.
+// Every prompt string must pass this before hitting the LLM.
 // ============================================================
 const LEAK_PATTERNS = [
   { name: "expected_outcome", re: /expected.*outcome/i },
@@ -108,7 +167,10 @@ function loadSoul(persona) {
 }
 
 // ============================================================
-// Prompt templates (mirrors scripts/PERSONA-PROMPTS.md verbatim).
+// Prompt templates. Tightened for Kimi K2.6 (which is dumber than
+// Sonnet on nuanced reasoning) — every prompt ends with an explicit
+// one-line JSON example and the strict "ONLY JSON, no prose, no
+// fences" instruction. Reject coerceResult will discard non-JSON.
 // ============================================================
 function buildPrompt(taskType, context) {
   if (taskType === "create") {
@@ -126,8 +188,10 @@ function buildPrompt(taskType, context) {
       `you'd genuinely want done by another agent. Write a concise title ` +
       `(under 80 chars) and a 2-3 sentence description that a worker could ` +
       `act on. Don't mention AWP internals, don't label the job as any kind ` +
-      `of trial, don't reference platform machinery.\n` +
-      `Return strictly JSON: {"title": "...", "description": "..."}`
+      `of trial, don't reference platform machinery.\n\n` +
+      `Respond with ONLY a JSON object — no prose before or after, no ` +
+      `markdown code fences. Schema: {"title": string, "description": string}.\n` +
+      `Example: {"title":"Draft a 200-word competitive analysis of three RPC providers","description":"Compare Alchemy, Infura, and QuickNode on free-tier limits, error rates, and getLogs reliability. 200 words, plain text."}`
     );
   }
   if (taskType === "submit") {
@@ -137,13 +201,15 @@ function buildPrompt(taskType, context) {
       `Title: ${j.title ?? ""}\n` +
       `Description: ${j.description ?? ""}\n` +
       `Reward: ${j.rewardUSDC ?? "5"} USDC\n` +
-      `Posted by: ${j.posterShort ?? "unknown"}\n` +
+      `Posted by: ${j.posterShort ?? "unknown"}\n\n` +
       `You've decided to submit work on this. Produce a plausible ` +
       `deliverable URL (must start with https://, length >= 50, and include ` +
       `a comma — the URL can be invented; think of it as where your work ` +
       `would live). Add a 1-2 sentence note about what you submitted. Stay ` +
-      `in character.\n` +
-      `Return strictly JSON: {"deliverableUrl": "...", "note": "..."}`
+      `in character.\n\n` +
+      `Respond with ONLY a JSON object — no prose before or after, no ` +
+      `markdown code fences. Schema: {"deliverableUrl": string, "note": string}.\n` +
+      `Example: {"deliverableUrl":"https://drafts.example.com/job/123,competitive-analysis-v1.md","note":"Comparison of Alchemy, Infura, QuickNode on getLogs reliability — see linked draft."}`
     );
   }
   if (taskType === "review") {
@@ -156,13 +222,13 @@ function buildPrompt(taskType, context) {
       `  Description: ${j.description ?? ""}\n` +
       `Submission by ${s.workerShort ?? "someone"}:\n` +
       `  Deliverable URL: ${s.deliverableUrl ?? ""}\n` +
-      `  Note: "${s.note ?? ""}"\n` +
-      `Decide whether to approve or reject, pick a rating from 1-5, and ` +
-      `write a 1-3 sentence review comment. Be consistent with your ` +
-      `character — if your persona is blunt, write bluntly. If you're ` +
-      `generous, be generous.\n` +
-      `Return strictly JSON: ` +
-      `{"decision":"approve"|"reject","score":1|2|3|4|5,"comment":"..."}`
+      `  Note: "${s.note ?? ""}"\n\n` +
+      `Decide whether to approve or reject, pick a quality score 0-100, ` +
+      `and write a 1-3 sentence reason. Be consistent with your character ` +
+      `— if your persona is blunt, write bluntly; if generous, be generous.\n\n` +
+      `Respond with ONLY a JSON object — no prose before or after, no ` +
+      `markdown code fences. Schema: {"decision": "approve"|"reject", "score": integer 0-100, "reason": string}.\n` +
+      `Example: {"decision":"approve","score":78,"reason":"Deliverable matches the brief; minor formatting issues but core analysis is solid."}`
     );
   }
   throw new Error(`[agent-runner] unknown taskType: ${taskType}`);
@@ -191,7 +257,9 @@ function fallbackResult(taskType, persona, context) {
   if (taskType === "review") {
     return {
       decision: "approve",
-      score: 4,
+      score: 70,
+      reason: "Meets the requirement.",
+      // Back-compat alias for callers that read .comment
       comment: "Meets the requirement.",
       fell_back: true
     };
@@ -200,23 +268,23 @@ function fallbackResult(taskType, persona, context) {
 }
 
 // ============================================================
-// OpenRouter call
+// Provider call (Chutes / OpenRouter share the OpenAI-compatible shape)
 // ============================================================
-async function callOpenRouter({ model, messages, maxTokens }) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+async function callProvider({ provider, model, messages, maxTokens }) {
+  const cfg = PROVIDERS[provider];
+  const apiKey = process.env[cfg.apiKeyEnv];
   if (!apiKey) {
     throw new Error(
-      "[agent-runner] OPENROUTER_API_KEY is not set — cannot dispatch LLM call"
+      `[agent-runner] ${cfg.apiKeyEnv} is not set — cannot dispatch LLM call (provider=${provider})`
     );
   }
   const t0 = Date.now();
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const res = await fetch(cfg.endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://swarm-testing-services.vercel.app",
-      "X-Title": "STS swarm agent runner"
+      ...cfg.headers()
     },
     body: JSON.stringify({
       model,
@@ -229,12 +297,22 @@ async function callOpenRouter({ model, messages, maxTokens }) {
   if (!res.ok) {
     const txt = await res.text().catch(() => "<unreadable>");
     throw new Error(
-      `[agent-runner] OpenRouter HTTP ${res.status}: ${txt.slice(0, 300)}`
+      `[agent-runner] ${provider} HTTP ${res.status}: ${txt.slice(0, 300)}`
     );
   }
   const body = await res.json();
   const ms = Date.now() - t0;
-  const content = body?.choices?.[0]?.message?.content ?? "";
+  const msg = body?.choices?.[0]?.message ?? {};
+  // Reasoning models (e.g. Kimi K2.6-TEE on Chutes) often put the final
+  // text in `reasoning_content` (or `reasoning`) and leave `content` null.
+  // Prefer `content`, then fall through to either reasoning field.
+  const content =
+    (typeof msg.content === "string" && msg.content.length > 0
+      ? msg.content
+      : null) ??
+    (typeof msg.reasoning_content === "string" ? msg.reasoning_content : null) ??
+    (typeof msg.reasoning === "string" ? msg.reasoning : "") ??
+    "";
   const usage = body?.usage ?? {};
   return {
     content,
@@ -246,16 +324,61 @@ async function callOpenRouter({ model, messages, maxTokens }) {
   };
 }
 
+// Walk the string and return the LAST balanced top-level {...} blob.
+// Reasoning-model outputs often contain multiple {...} fragments inside
+// the trace ("the JSON would be {...}") followed by the final answer
+// also as {...}. We want the last complete one.
+function findLastBalancedObject(s) {
+  let lastBlob = null;
+  let depth = 0;
+  let start = -1;
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') {
+      inStr = true;
+      continue;
+    }
+    if (c === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (c === "}") {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        lastBlob = s.slice(start, i + 1);
+        start = -1;
+      }
+    }
+  }
+  return lastBlob;
+}
+
 function tryParseJson(s) {
   if (typeof s !== "string") return null;
   // Trim code fences if the model wrapped them.
-  const trimmed = s
+  let trimmed = s
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/```\s*$/, "")
     .trim();
+  // First try direct parse (fast path for clean responses).
   try {
     return JSON.parse(trimmed);
+  } catch {
+    /* fall through */
+  }
+  // Reasoning trace or stray prose — find the last balanced {...} blob.
+  const blob = findLastBalancedObject(trimmed);
+  if (!blob) return null;
+  try {
+    return JSON.parse(blob);
   } catch {
     return null;
   }
@@ -291,12 +414,21 @@ function coerceResult(taskType, parsed) {
     const sc = parsed.score;
     if (dec !== "approve" && dec !== "reject") return null;
     const scoreNum = typeof sc === "number" ? Math.round(sc) : parseInt(sc, 10);
-    if (!Number.isFinite(scoreNum) || scoreNum < 1 || scoreNum > 5) return null;
-    if (typeof parsed.comment !== "string") return null;
+    if (!Number.isFinite(scoreNum) || scoreNum < 0 || scoreNum > 100) return null;
+    // Accept either `reason` (new schema) or `comment` (legacy).
+    const reason =
+      typeof parsed.reason === "string"
+        ? parsed.reason
+        : typeof parsed.comment === "string"
+          ? parsed.comment
+          : null;
+    if (reason == null) return null;
     return {
       decision: dec,
       score: scoreNum,
-      comment: parsed.comment.slice(0, 400)
+      reason: reason.slice(0, 400),
+      // Back-compat alias for downstream callers that still read .comment
+      comment: reason.slice(0, 400)
     };
   }
   return null;
@@ -310,10 +442,13 @@ export async function runAgent({
   taskType,
   context,
   maxTurns = 3,
-  model = DEFAULT_MODEL
+  model
 }) {
   if (!persona) throw new Error("[agent-runner] missing persona");
   if (!taskType) throw new Error("[agent-runner] missing taskType");
+
+  const provider = pickProvider();
+  const resolvedModel = model || defaultModelFor(provider);
 
   const soul = loadSoul(persona);
   const userPrompt = buildPrompt(taskType, context || {});
@@ -338,7 +473,12 @@ export async function runAgent({
     turns++;
     let call;
     try {
-      call = await callOpenRouter({ model, messages, maxTokens: 600 });
+      call = await callProvider({
+        provider,
+        model: resolvedModel,
+        messages,
+        maxTokens: 1500
+      });
     } catch (e) {
       lastErr = e;
       break;
@@ -351,8 +491,9 @@ export async function runAgent({
     if (result) {
       const ms = Date.now() - t0;
       console.log(
-        `[agent-runner] persona=${persona} task=${taskType} turns=${turns} ` +
-          `tokens=${tokensIn}/${tokensOut} ms=${ms} outcome=ok`
+        `[agent-runner] persona=${persona} task=${taskType} provider=${provider} ` +
+          `model=${resolvedModel} turns=${turns} tokens=${tokensIn}/${tokensOut} ` +
+          `ms=${ms} outcome=ok`
       );
       return { ...result, fell_back: false };
     }
@@ -364,7 +505,7 @@ export async function runAgent({
       content:
         "Your previous reply was not valid JSON matching the required shape. " +
         "Respond with only the JSON object specified — no commentary, no " +
-        "code fences."
+        "code fences, no preamble. Just the raw JSON object."
     });
   }
 
@@ -372,8 +513,9 @@ export async function runAgent({
   const fb = fallbackResult(taskType, persona, context || {});
   const ms = Date.now() - t0;
   console.log(
-    `[agent-runner] persona=${persona} task=${taskType} turns=${turns} ` +
-      `tokens=${tokensIn}/${tokensOut} ms=${ms} outcome=fallback` +
+    `[agent-runner] persona=${persona} task=${taskType} provider=${provider} ` +
+      `model=${resolvedModel} turns=${turns} tokens=${tokensIn}/${tokensOut} ` +
+      `ms=${ms} outcome=fallback` +
       (lastErr ? ` err=${lastErr.message?.slice(0, 500)}` : "")
   );
   return fb;
