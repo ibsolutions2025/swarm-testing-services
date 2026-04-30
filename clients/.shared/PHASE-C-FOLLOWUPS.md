@@ -5,6 +5,23 @@ Addressing these is post-Phase-C work; do NOT block C.5/C.6/C.7 on them.
 
 ---
 
+## Phase E priority order (locked 2026-04-29 after D.3)
+
+After Phase D validated the engine drives the swarm, Isaiah ordered Phase E
+work by operational urgency:
+
+| Priority | Item | Why this rank |
+|---|---|---|
+| **E.1** | pm2 auto-launch on Windows boot | Most urgent — operator-blocking. HLO died TWICE in this session alone (Cowork pm2 daemon dies with Windows sleep / logout / reboot; nothing auto-resurrects). 26h silence + 5h silence in 24h. Blocking AWP swarm reliability. **Task Scheduler entry recommended.** Details in `clients/.shared/HLO-OPS-NOTES.md` + the original "## E.5 (was E.1)" section below — renumbered to E.1 priority |
+| **E.2** | derive-matrix prompt: declare matrix-controlled scalars vs dispatch-time arrays | Root fix for the "non-empty" / ">0" placeholder bug from D.2. Until this lands, every greenlit lib needs HITL data tightening. Originally E.1 in the followups list below. |
+| **E.3** | Matrix editor UI: require maps_to per value at axis creation | Caught the deadline-axis-without-maps_to bug at HITL time (D.2). Originally E.2 in the followups list below. |
+| **E.4** | Engine prompts emit runtime helpers natively (replaces cutover shim) | The Path A version of E.4 below. Today the helpers ride in via cutover stitching (Path B); Phase E moves them into the engine's templated output so engine-output alone is drop-in. Originally E.4 in the followups list below. |
+
+E.3 in the original list (fold sub-mode + deadline when both touch one ABI
+param) is deferred — interesting cleanup but not blocking.
+
+---
+
 ## 1. Step 05 crawl-docs returned 0 pages (was 16 in iter3)
 
 **Where:** `framework/onboarding/steps/05-crawl-docs.mjs`
