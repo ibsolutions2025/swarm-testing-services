@@ -779,7 +779,106 @@ await emitOrchestrationEvent({
   meta: { total_on_chain: totalJobs, scan_low: lowJob, scan_high: highJob - 1 },
 });
 
+// ─────────────────────────────────────────────────────────────────
+// Phase I — order jobs so each tick advances UNIQUE cells, not duplicate
+// jobs in already-passed cells. Pre-I drain walked highest-jobId-first,
+// so a popular cell with 13 in-flight jobs would consume the entire
+// MAX_ACTIONS budget while 312 empty cells got zero coverage. Same
+// pipeline cost; vastly better cell coverage per drain run.
+//
+// Build:
+//   passedCells     — Set of "config|scenario" strings that already have ≥1 passed job
+//   jobToCell       — Map jobId → "config|scenario" from scanner-v15's classification
+// Then group window jobs by cell, sort cells (no-pass first), and emit
+// a round-robin ordering: one job from each cell per round, until the
+// window is exhausted.
+async function fetchPassedAndJobCells(lowJ, highJ) {
+  const passedCells = new Set();
+  const jobToCell = new Map();
+  if (!STS_SUPABASE_KEY) return { passedCells, jobToCell };
+
+  // Query 1: cells with at least one passed job (paginated up to 10k rows)
+  for (let offset = 0; offset < 10000; offset += 1000) {
+    const r = await fetch(
+      `${STS_SUPABASE_URL}/rest/v1/lifecycle_results?project_id=eq.awp` +
+      `&status=eq.passed&select=config_key,scenario_key&limit=1000&offset=${offset}`,
+      { headers: { apikey: STS_SUPABASE_KEY, Authorization: `Bearer ${STS_SUPABASE_KEY}` } },
+    );
+    if (!r.ok) break;
+    const rows = await r.json();
+    for (const row of rows) {
+      if (row.config_key && row.scenario_key) {
+        passedCells.add(`${row.config_key}|${row.scenario_key}`);
+      }
+    }
+    if (rows.length < 1000) break;
+  }
+
+  // Query 2: scanner classifications for jobs in this window
+  const r2 = await fetch(
+    `${STS_SUPABASE_URL}/rest/v1/lifecycle_results?project_id=eq.awp` +
+    `&onchain_job_id=gte.${lowJ}&onchain_job_id=lte.${highJ}` +
+    `&select=onchain_job_id,config_key,scenario_key&limit=1000`,
+    { headers: { apikey: STS_SUPABASE_KEY, Authorization: `Bearer ${STS_SUPABASE_KEY}` } },
+  );
+  if (r2.ok) {
+    for (const row of await r2.json()) {
+      if (row.onchain_job_id != null && row.config_key && row.scenario_key) {
+        jobToCell.set(Number(row.onchain_job_id), `${row.config_key}|${row.scenario_key}`);
+      }
+    }
+  }
+  return { passedCells, jobToCell };
+}
+
+let cellPriorityData;
+try { cellPriorityData = await fetchPassedAndJobCells(lowJob, highJob - 1); }
+catch (e) { cellPriorityData = { passedCells: new Set(), jobToCell: new Map() }; }
+const { passedCells, jobToCell } = cellPriorityData;
+
+// Group jobs by cell. Jobs not yet classified by the scanner go into a
+// synthetic per-job key so they each form their own group (preserves
+// pre-I behavior for them — newest-first FIFO).
+const jobsByCell = new Map();
 for (let jid = highJob - 1; jid >= lowJob; jid--) {
+  const cell = jobToCell.get(jid) || `__unclassified-${jid}`;
+  if (!jobsByCell.has(cell)) jobsByCell.set(cell, []);
+  jobsByCell.get(cell).push(jid); // newest first since we count down
+}
+
+// Sort cells: no-pass cells before passed cells. Within each tier, keep
+// insertion order (newest cells first by virtue of newest jobs added first).
+const cellOrder = [...jobsByCell.keys()].sort((a, b) => {
+  const aPassed = passedCells.has(a) ? 1 : 0;
+  const bPassed = passedCells.has(b) ? 1 : 0;
+  return aPassed - bPassed;
+});
+
+// Round-robin: pull one job at a time from each cell's queue, in cellOrder.
+// Repeats until all queues are empty. Result: every drain action lands on
+// a different cell (if there are enough distinct cells in the window).
+const queues = cellOrder.map(c => [...jobsByCell.get(c)]);
+const orderedJobs = [];
+let anyLeft = true;
+while (anyLeft) {
+  anyLeft = false;
+  for (const q of queues) {
+    if (q.length) {
+      orderedJobs.push(q.shift());
+      anyLeft = true;
+    }
+  }
+}
+
+const cellsNoPass = cellOrder.filter(c => !passedCells.has(c) && !c.startsWith('__unclassified-')).length;
+const cellsAlreadyPassed = cellOrder.filter(c => passedCells.has(c)).length;
+console.log(
+  `[${RUN_ID}] Cell prioritization: ${cellOrder.length} distinct cells in window, ` +
+  `${cellsNoPass} not-yet-passed, ${cellsAlreadyPassed} already-passed. ` +
+  `Round-robin order built across ${orderedJobs.length} jobs.`,
+);
+
+for (const jid of orderedJobs) {
   if (actionsTaken >= MAX_ACTIONS) break;
   try {
     await progressJob(jid);

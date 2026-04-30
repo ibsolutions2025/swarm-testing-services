@@ -561,26 +561,35 @@ async function readTargetGaps() {
   } catch { return null; }
 }
 
-// Pick a steered cell at random from the top-50 most under-covered, excluding
-// any cell already used in this tick (so 7 parallel posts hit 7 different
-// cells) and any cell HLO recently dispatched.
-function pickSteeredCell(gaps, usedCells, recentlyDispatched, coverage) {
-  if (!gaps || !Array.isArray(gaps.underCoveredCells) || !gaps.underCoveredCells.length) return null;
-  const top = gaps.underCoveredCells.slice(0, STEERED_TOP_LIMIT);
-  // Filter to cells not already used / recently dispatched / scanner-covered
-  const avail = top.filter(c => {
-    const key = `${c.config_key}|${c.scenario_id}`;
-    if (usedCells.has(key)) return false;
-    if (recentlyDispatched && recentlyDispatched.has(key)) return false;
-    const states = coverage.get(key) || [];
-    if (states.some(s => s === 'passed' || s === 'running')) return false;
-    return true;
-  });
-  if (!avail.length) return null;
-  const pick = avail[Math.floor(Math.random() * avail.length)];
-  let params;
-  try { params = parseConfigKey(pick.config_key); } catch { return null; }
-  return { configKey: pick.config_key, scenarioId: pick.scenario_id, params };
+// Phase I — sample N cells WITHOUT replacement from the top-50 under-covered.
+// Pre-I pickSteeredCell was called once per agent in a loop with a usedCells
+// Set check, which worked but relied on the caller to thread state correctly.
+// This shuffle-once-take-N pattern guarantees uniqueness within a tick by
+// construction. Returns up to `count` cells; fewer if the available pool is
+// smaller after exclusions.
+//
+// We deliberately do NOT re-apply the recentlyDispatched / coverage filters
+// here — steering itself already excludes any cell with a passed lifecycle
+// row OR an HLO dispatch in the last 6 hours (matrix-steering.mjs builds
+// inFlightCells from orchestration_events). Re-filtering here would shrink
+// the available pool to near zero once HLO has been running for a few
+// minutes (every cell in the gaps list would also be in recentlyDispatched).
+function pickSteeredCellsForTick(gaps, count) {
+  if (!gaps || !Array.isArray(gaps.underCoveredCells) || !gaps.underCoveredCells.length) return [];
+  const avail = gaps.underCoveredCells.slice(0, STEERED_TOP_LIMIT);
+  // Fisher-Yates shuffle — equal prob over the available top-50, no repeats.
+  const shuffled = avail.slice();
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const out = [];
+  for (const c of shuffled.slice(0, count)) {
+    let params;
+    try { params = parseConfigKey(c.config_key); } catch { continue; }
+    out.push({ configKey: c.config_key, scenarioId: c.scenario_id, params });
+  }
+  return out;
 }
 
 // GAP 2 fix (2026-04-27): pickUntestedCell takes an additional
@@ -1206,23 +1215,32 @@ async function tick() {
       return;
     }
 
-    // 4. Pick one cell PER eligible agent — steered preferred, rotation fallback.
+    // 4. Pick one DISTINCT cell per eligible agent. Phase I: pre-shuffle the
+    // top-50 steered list and take the first N — guarantees no repeats within
+    // a tick by construction. Falls back to rotation pick (one-by-one with
+    // usedCells exclusion) if steering data is stale or runs dry.
     const usedCells = new Set();
     const steeredAvailable = !!(gaps && Array.isArray(gaps.underCoveredCells) && gaps.underCoveredCells.length);
     const actions = [];
-    for (const agent of eligible) {
-      let cell = null;
-      let pickSource = null;
-      if (steeredAvailable) {
-        cell = pickSteeredCell(gaps, usedCells, recentlyDispatched, coverage);
-        if (cell) pickSource = 'steered';
-      }
+
+    let steeredPicks = [];
+    if (steeredAvailable) {
+      steeredPicks = pickSteeredCellsForTick(gaps, eligible.length);
+      for (const p of steeredPicks) usedCells.add(`${p.configKey}|${p.scenarioId}`);
+    }
+
+    for (let i = 0; i < eligible.length; i++) {
+      const agent = eligible[i];
+      let cell = steeredPicks[i] || null;
+      let pickSource = cell ? 'steered' : null;
       if (!cell) {
         cell = pickUntestedCell(coverage, recentlyDispatched, eligible, usedCells);
-        if (cell) pickSource = 'rotation';
+        if (cell) {
+          pickSource = 'rotation';
+          usedCells.add(`${cell.configKey}|${cell.scenarioId}`);
+        }
       }
       if (!cell) break; // No more cells to assign this tick
-      usedCells.add(`${cell.configKey}|${cell.scenarioId}`);
       actions.push({
         kind: 'create_job',
         priority: 'C',
