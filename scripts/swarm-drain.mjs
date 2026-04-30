@@ -162,7 +162,7 @@ const intendedFor = (jobId) => intendedScenarios[String(jobId)] || 's01-happy-pa
 const JOB_ABI = parseAbi([
   'function jobCount() view returns (uint256)',
   'function getSubmissionCount(uint256 jobId) view returns (uint256)',
-  'function getJobV12(uint256 jobId) view returns (address poster, uint256 reward, uint8 status, address activeValidator, address[] validatorWaitlist, uint256 validatorTimeout, bool openValidation, string title, string description, string requirementsJson, uint256 claimWindowHours, uint8 validationMode, uint8 submissionMode, uint256 submissionWindow, string validationScriptCID, bool requireSecurityAudit, string securityAuditTemplate, uint256 submissionDeadline, bool allowResubmission, bool allowRejectAll, address[] approvedWorkers, string validationInstructions)',
+  'function getJobV15(uint256 jobId) view returns (address poster, uint256 reward, uint8 status, address activeValidator, address[] validatorWaitlist, uint256 validatorTimeout, bool openValidation, string title, string description, string requirementsJson, uint256 claimWindowHours, uint8 validationMode, uint8 submissionMode, uint256 submissionWindow, string validationScriptCID, bool requireSecurityAudit, string securityAuditTemplate, uint256 submissionDeadline, bool allowResubmission, bool allowRejectAll, address[] approvedWorkers, string validationInstructions, uint256 minWorkerRating, uint256 minValidatorRating)',
   'function getSubmissionV11(uint256 jobId, uint256 index) view returns (address worker, string deliverableUrl, bytes32 encryptedDeliverableHash, uint256 timestamp, uint8 status, bytes decryptionKey, bytes32 scriptResultHash, uint256 scriptScore, bool scriptPassed, string securityAuditCID)',
   'function isApprovedWorker(uint256 jobId, address worker) view returns (bool)',
   'function submitWork(uint256 jobId, string deliverableUrl, bytes32 encryptedDeliverableHash) returns (uint256)',
@@ -210,7 +210,7 @@ async function agentSubmit(jobId, agent, job) {
 async function getJob(jobId) {
   try {
     const r = await pub.readContract({
-      address: JOB_NFT, abi: JOB_ABI, functionName: 'getJobV12', args: [BigInt(jobId)],
+      address: JOB_NFT, abi: JOB_ABI, functionName: 'getJobV15', args: [BigInt(jobId)],
     });
     return {
       id: jobId,
