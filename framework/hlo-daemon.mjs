@@ -33,8 +33,10 @@
  *   OPENCLAW_GATEWAY_URL     when HLO_DISPATCH_MODE=http
  *   OPENCLAW_GATEWAY_TOKEN   bearer token for the gateway
  */
-import { createPublicClient, http, parseAbi } from 'viem';
+import { createPublicClient, createWalletClient, http, parseAbi } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia } from 'viem/chains';
+import { existsSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 
 import {
   CONTRACT_ADDRESSES,
@@ -98,6 +100,8 @@ const JOB_ABI = parseAbi([
   'function jobCount() view returns (uint256)',
   'function getSubmissionCount(uint256) view returns (uint256)',
   'function getJobV15(uint256 jobId) view returns (address poster,uint256 reward,uint8 status,address activeValidator,address[] validatorWaitlist,uint256 validatorTimeout,bool openValidation,string title,string description,string requirementsJson,uint256 claimWindowHours,uint8 validationMode,uint8 submissionMode,uint256 submissionWindow,string validationScriptCID,bool requireSecurityAudit,string securityAuditTemplate,uint256 submissionDeadline,bool allowResubmission,bool allowRejectAll,address[] approvedWorkers,string validationInstructions,uint256 minWorkerRating,uint256 minValidatorRating)',
+  // Phase H — direct dispatch path for create_job (bypasses OpenClaw CLI)
+  'function createJob(string title, string description, string requirementsJson, uint256 rewardAmount, bool openValidation, address[] approvedValidators, uint256 validatorTimeoutSeconds, uint256 claimWindowHours_, uint8 validationMode_, uint8 submissionMode_, uint256 submissionWindow_, string validationScriptCID_, bool requireSecurityAudit_, string securityAuditTemplate_, bool allowResubmission_, bool allowRejectAll_, address[] approvedWorkers_, string validationInstructions_, uint256 minWorkerRating_, uint256 minValidatorRating_) returns (uint256)',
 ]);
 const RG_ABI = parseAbi([
   'function getPendingReviewCount(address) view returns (uint256)',
@@ -106,7 +110,292 @@ const RG_ABI = parseAbi([
 ]);
 const USDC_ABI = parseAbi([
   'function balanceOf(address) view returns (uint256)',
+  'function approve(address spender, uint256 value) returns (bool)',
+  'function allowance(address owner, address spender) view returns (uint256)',
 ]);
+
+const MOCK_USDC = CONTRACT_ADDRESSES.MockUSDC;
+// File written by HLO direct-dispatch + read by swarm-drain on the VPS to
+// know each job's intended scenario. Path is VPS-local; on Windows the
+// writes are best-effort (swarm-drain reads from VPS regardless).
+const SCENARIOS_FILE = process.env.AWP_SCENARIOS_FILE || '/root/test-swarm/intended-scenarios.json';
+
+// ─────────────────────────────────────────────────────────────────
+// Phase H — direct viem dispatch for create_job
+// ─────────────────────────────────────────────────────────────────
+// Loads each agent's private key (env first, IDENTITY.md fallback), keyed
+// by lowercase wallet address. Agents missing a key still participate in
+// HLO's read-side decisions (eligibility, etc.) but skip direct-dispatch.
+const AGENT_ACCOUNTS = new Map();
+
+function loadAgentKeys() {
+  for (let i = 0; i < AGENTS.length; i++) {
+    const agent = AGENTS[i];
+    const last4 = agent.name.slice(-4); // e.g. "55a8"
+    const last4Upper = last4.toUpperCase();
+    // Existing Windows .env convention is AGENT_<LAST4>_PRIVATE_KEY; AWP-side
+    // env (./awp-env) historically used AGENT_<LAST4>_PK. Accept either.
+    let pk =
+      process.env[`AGENT_${last4Upper}_PRIVATE_KEY`] ||
+      process.env[`AGENT_${last4Upper}_PK`];
+
+    // VPS fallback — swarm-create.mjs convention. No-op on Windows where
+    // /root/test-swarm/agent-N/IDENTITY.md doesn't exist.
+    if (!pk) {
+      const idPath = `/root/test-swarm/agent-${i + 1}/IDENTITY.md`;
+      try {
+        if (existsSync(idPath)) {
+          const raw = readFileSync(idPath, 'utf8');
+          const m = raw.match(/Private Key:\s*(0x[a-fA-F0-9]{64})/);
+          if (m) pk = m[1];
+        }
+      } catch { /* file unreadable, skip */ }
+    }
+
+    if (!pk) {
+      console.log(`[hlo] no private key for ${agent.name} (set AGENT_${last4Upper}_PRIVATE_KEY or AGENT_${last4Upper}_PK)`);
+      continue;
+    }
+    let account;
+    try { account = privateKeyToAccount(pk); }
+    catch (e) {
+      console.log(`[hlo] ${agent.name}: invalid private key (${e.message})`);
+      continue;
+    }
+    if (account.address.toLowerCase() !== agent.wallet.toLowerCase()) {
+      console.log(`[hlo] ${agent.name}: PK derives to ${account.address} but configured wallet is ${agent.wallet} — skipping`);
+      continue;
+    }
+    AGENT_ACCOUNTS.set(agent.wallet.toLowerCase(), account);
+  }
+  console.log(`[hlo] loaded ${AGENT_ACCOUNTS.size}/${AGENTS.length} agent private keys for direct dispatch`);
+}
+
+// configKey → createJob params (mirrors swarm-create.mjs's configKeyToParams)
+function configKeyToCreateJobParams(key, posterAddress) {
+  const [valMode, deadline, subMode, workerAccess, validatorAccess] = key.split('-');
+  const otherAgents = AGENTS.map(a => a.wallet)
+    .filter(a => a.toLowerCase() !== posterAddress.toLowerCase());
+
+  const validationMode = valMode === 'soft' ? 1 : valMode === 'hard' ? 0 : 2;
+  const submissionMode = subMode === 'multi' ? 1 : 0;
+  // submissionWindow is the MULTI-mode resubmission window — contract
+  // requires it nonzero whenever submissionMode==1, regardless of the
+  // `deadline` axis. Mirrors swarm-create.mjs verbatim. (Previous attempt
+  // tied this to deadline and got 5/7 simulate reverts on multi-* cells.)
+  const submissionWindow = submissionMode === 1 ? 7200 : 0;
+
+  let approvedWorkers = [];
+  let minWorkerRating = 0;
+  if (workerAccess === 'approved') approvedWorkers = otherAgents.slice(0, 3);
+  else if (workerAccess === 'rating') minWorkerRating = 400;
+
+  let approvedValidators = [];
+  let openValidation = true;
+  let minValidatorRating = 0;
+  if (validatorAccess === 'approved') {
+    openValidation = false;
+    approvedValidators = otherAgents.slice(3, 6);
+  } else if (validatorAccess === 'rating') {
+    minValidatorRating = 400;
+  }
+
+  const validationScriptCID =
+    (validationMode === 0 || validationMode === 2) ? 'QmTestValidationScript_AWP_v1' : '';
+
+  return {
+    validationMode, submissionMode, submissionWindow,
+    approvedWorkers, approvedValidators, openValidation,
+    minWorkerRating, minValidatorRating,
+    validationScriptCID,
+    allowResubmission: submissionMode === 1,
+    allowRejectAll: validationMode === 1 && submissionMode === 1,
+  };
+}
+
+// Persona-agnostic, deterministic title/description so we don't need an LLM
+// in the dispatch path. The TOPIC_BANK already lives below; we just template
+// around it. Kept short enough to fit any title<80-char rule the contract
+// enforces.
+function makeJobTitleAndDesc(topic, constraintBullets) {
+  const title = `Task: ${topic}`.slice(0, 79);
+  const constraintLine = constraintBullets.length
+    ? ` Constraints: ${constraintBullets.join('; ')}.`
+    : '';
+  const desc = (
+    `Produce ${topic}. Reward 5 USDC.` + constraintLine +
+    ' Submit deliverable URL when ready.'
+  ).slice(0, 1500);
+  return { title, desc };
+}
+
+function configKeyToConstraints(key) {
+  const [valMode, deadline, subMode, workerAccess, validatorAccess] = key.split('-');
+  const lines = [];
+  if (valMode === 'soft') lines.push('reviewer judges by hand');
+  else if (valMode === 'hard') lines.push('automated script checks the submission');
+  else if (valMode === 'hardsift') lines.push('automated check first then human review');
+  if (subMode === 'single') lines.push('first valid submission wins');
+  else if (subMode === 'multi') lines.push('multiple workers can submit; reviewer picks one');
+  if (deadline === 'timed') lines.push('2-hour submission window');
+  if (workerAccess === 'approved') lines.push('approved workers only');
+  else if (workerAccess === 'rating') lines.push('worker reputation >= 4.0 required');
+  if (validatorAccess === 'approved') lines.push('approved reviewers only');
+  else if (validatorAccess === 'rating') lines.push('reviewer reputation >= 4.0 required');
+  return lines;
+}
+
+// Annotate /root/test-swarm/intended-scenarios.json so swarm-drain can walk
+// the new job through its target scenario. On Windows this is a best-effort
+// write to a path that probably doesn't exist; harmless. On VPS deploys this
+// is the canonical mechanism (matches swarm-create.mjs).
+function annotateScenario(jobId, scenarioId) {
+  try {
+    let scenarios = {};
+    if (existsSync(SCENARIOS_FILE)) {
+      try { scenarios = JSON.parse(readFileSync(SCENARIOS_FILE, 'utf8')); } catch {}
+    }
+    scenarios[String(jobId)] = scenarioId;
+    writeFileSync(SCENARIOS_FILE, JSON.stringify(scenarios, null, 2));
+  } catch (e) {
+    // Path likely doesn't exist on this host (Windows); fine.
+    if (process.env.HLO_LOG_LEVEL === 'debug') {
+      console.log(`[hlo] scenarios annotation skipped: ${e.message?.slice(0, 80)}`);
+    }
+  }
+}
+
+const REWARD_USDC_AMOUNT = 5n * 10n ** 6n; // 5 USDC, 6 decimals
+
+// Direct viem dispatch for create_job. No CLI, no LLM, no agent process.
+// Pure on-chain post: simulate → (approve if needed) → createJob → parse
+// JobCreated event for jobId. Returns { ok, jobId?, txHash?, error? }.
+async function dispatchCreateJobDirect(action) {
+  const agent = action.agent.agent;
+  const account = AGENT_ACCOUNTS.get(agent.wallet.toLowerCase());
+  if (!account) {
+    return { ok: false, error: `no private key loaded for ${agent.name}` };
+  }
+  if (action.kind !== 'create_job') {
+    return { ok: false, error: `direct dispatch only supports create_job (got ${action.kind})` };
+  }
+
+  const wallet = createWalletClient({ account, chain: baseSepolia, transport: http(ALCHEMY_RPC) });
+  const params = configKeyToCreateJobParams(action.configKey, agent.wallet);
+
+  // USDC balance / allowance (5 USDC reward)
+  let bal;
+  try {
+    bal = await pub.readContract({ address: MOCK_USDC, abi: USDC_ABI, functionName: 'balanceOf', args: [agent.wallet] });
+  } catch (e) {
+    return { ok: false, error: `usdc.balanceOf failed: ${e.shortMessage || e.message?.slice(0, 200)}` };
+  }
+  if (bal < REWARD_USDC_AMOUNT) {
+    return { ok: false, error: `insufficient USDC: have ${bal}, need ${REWARD_USDC_AMOUNT}` };
+  }
+
+  let allow;
+  try {
+    allow = await pub.readContract({ address: MOCK_USDC, abi: USDC_ABI, functionName: 'allowance', args: [agent.wallet, JOBNFT_V15] });
+  } catch (e) {
+    return { ok: false, error: `usdc.allowance failed: ${e.shortMessage || e.message?.slice(0, 200)}` };
+  }
+  if (allow < REWARD_USDC_AMOUNT) {
+    try {
+      const approveHash = await wallet.writeContract({
+        address: MOCK_USDC, abi: USDC_ABI, functionName: 'approve',
+        args: [JOBNFT_V15, 10_000n * 10n ** 6n], gas: 100_000n,
+      });
+      await pub.waitForTransactionReceipt({ hash: approveHash, timeout: 60_000 });
+    } catch (e) {
+      return { ok: false, error: `usdc.approve failed: ${e.shortMessage || e.message?.slice(0, 200)}` };
+    }
+  }
+
+  // Build createJob args (V15 ABI — 20 args, ratings trailing)
+  const constraints = configKeyToConstraints(action.configKey);
+  const topic = TOPIC_BANK[Math.floor(Math.random() * TOPIC_BANK.length)];
+  const { title, desc } = makeJobTitleAndDesc(topic, constraints);
+
+  const requirementsJson = JSON.stringify({
+    minWorkerRating: params.minWorkerRating,
+    minValidatorRating: params.minValidatorRating,
+    scenario: action.scenarioId,
+    config: action.configKey,
+  });
+
+  const args = [
+    title, desc, requirementsJson, REWARD_USDC_AMOUNT,
+    params.openValidation, params.approvedValidators,
+    0n, 0n, // validatorTimeoutSeconds, claimWindowHours_ (contract defaults)
+    params.validationMode, params.submissionMode, BigInt(params.submissionWindow),
+    params.validationScriptCID,
+    false, '', // requireSecurityAudit_, securityAuditTemplate_
+    params.allowResubmission, params.allowRejectAll,
+    params.approvedWorkers,
+    'Judge the submission against the job description. Score 1-5 and briefly explain your rating.',
+    BigInt(params.minWorkerRating),
+    BigInt(params.minValidatorRating),
+  ];
+
+  // Simulate first — abort cleanly on revert without spending gas
+  try {
+    await pub.simulateContract({ address: JOBNFT_V15, abi: JOB_ABI, functionName: 'createJob', args, account });
+  } catch (e) {
+    return { ok: false, error: `simulate revert: ${e.shortMessage || e.message?.slice(0, 200)}` };
+  }
+
+  let hash;
+  try {
+    hash = await wallet.writeContract({
+      address: JOBNFT_V15, abi: JOB_ABI, functionName: 'createJob', args, gas: 3_000_000n,
+    });
+  } catch (e) {
+    return { ok: false, error: `writeContract failed: ${e.shortMessage || e.message?.slice(0, 200)}` };
+  }
+
+  let rcpt;
+  try {
+    rcpt = await pub.waitForTransactionReceipt({ hash, timeout: 90_000 });
+  } catch (e) {
+    return { ok: false, error: `receipt wait failed: ${e.message?.slice(0, 200)}`, txHash: hash };
+  }
+  if (rcpt.status !== 'success') {
+    return { ok: false, error: `tx reverted (status=${rcpt.status})`, txHash: hash };
+  }
+
+  // Parse JobCreated event topic for jobId (first indexed param after topic[0]).
+  let jobId = null;
+  for (const log of rcpt.logs) {
+    if (log.address.toLowerCase() === JOBNFT_V15.toLowerCase() && log.topics.length >= 2) {
+      const topic = log.topics[1];
+      if (topic && topic !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+        jobId = parseInt(topic, 16);
+        break;
+      }
+    }
+  }
+  if (jobId == null) {
+    // Fallback: read jobCount post-tx — not perfectly attribution-safe under
+    // parallel posts but better than nothing.
+    try {
+      const jc = await pub.readContract({ address: JOBNFT_V15, abi: JOB_ABI, functionName: 'jobCount' });
+      jobId = Number(jc) - 1;
+    } catch { /* leave null */ }
+  }
+
+  if (jobId != null && action.scenarioId) {
+    annotateScenario(jobId, action.scenarioId);
+  }
+
+  return {
+    ok: true,
+    jobId,
+    txHash: hash,
+    blockNumber: Number(rcpt.blockNumber),
+    title, // for log lines downstream
+  };
+}
 
 // ─────────────────────────────────────────────────────────────────
 // argv helper (same shape as scanner.mjs)
@@ -246,11 +535,13 @@ async function readRecentlyDispatchedCells(minutes = 30) {
 // into the harder cells (rating-gates, hardsift validation, timed deadlines).
 const STEERING_FRESH_MIN = 30; // minutes; older payloads are ignored
 const STEERED_TOP_LIMIT = 50;   // pick uniformly at random from top-N gaps
-// Parallel-tick concurrency cap. The Windows OpenClaw CLI gateway serializes
-// concurrent dispatches harder than expected — 7-wide parallel hit 6/7 cli
-// timeouts in observation. Cap at 3 by default; tune up via env once gateway
-// concurrency is verified or after switching to http dispatch mode.
-const HLO_PARALLEL_LIMIT = Math.max(1, parseInt(process.env.HLO_PARALLEL_LIMIT || '3', 10));
+// Parallel-tick concurrency cap. Phase H bypasses the OpenClaw CLI for
+// create_job (which was the bottleneck — gateway serialized parallel cli
+// invocations and 6/7 timed out at 10min). With direct viem dispatch each
+// agent posts on its own RPC connection, so 7-wide parallel is safe.
+// Tunable via env if a future bottleneck (RPC rate limits, mempool, etc.)
+// shows up.
+const HLO_PARALLEL_LIMIT = Math.max(1, parseInt(process.env.HLO_PARALLEL_LIMIT || '7', 10));
 
 async function readTargetGaps() {
   if (!STS_KEY) return null;
@@ -640,6 +931,34 @@ async function emitHeartbeat(meta) {
 // one bad agent doesn't poison the whole tick.
 // ─────────────────────────────────────────────────────────────────
 async function dispatchOneAction(action, beforeJobCount, cycleId) {
+  // ── Phase H: route create_job through direct viem dispatch when an
+  // agent's private key is loaded. Skips OpenClaw CLI entirely — much
+  // faster (~3-5s instead of ~3min) AND parallel-safe (each agent has
+  // its own wallet client + nonce). For create_job actions where the
+  // key isn't available, fall through to the legacy CLI/dryrun path
+  // below so behavior is unchanged.
+  //
+  // In dryrun mode, log what direct dispatch WOULD do (7 distinct
+  // create_job param sets) without sending tx. Lets us prove the
+  // parallel pick worked without spending gas.
+  if (
+    action.kind === 'create_job' &&
+    action.agent?.agent?.wallet &&
+    AGENT_ACCOUNTS.has(action.agent.agent.wallet.toLowerCase())
+  ) {
+    if (DISPATCH_MODE === 'dryrun') {
+      const params = configKeyToCreateJobParams(action.configKey, action.agent.agent.wallet);
+      console.log(
+        `  [DRY DIRECT-CREATE → ${action.agent.agent.name}] cell=${action.configKey}|${action.scenarioId} ` +
+        `valMode=${params.validationMode} subMode=${params.submissionMode} ` +
+        `subWindow=${params.submissionWindow} approvedW=${params.approvedWorkers.length} ` +
+        `approvedV=${params.approvedValidators.length} minWR=${params.minWorkerRating} minVR=${params.minValidatorRating}`,
+      );
+      return true;
+    }
+    return await dispatchCreateJobDirectWithTelemetry(action, cycleId);
+  }
+
   const message = generateDispatchMessage(action);
   try {
     assertInsiderInfoClean('hlo-dispatch', message);
@@ -746,6 +1065,71 @@ async function dispatchOneAction(action, beforeJobCount, cycleId) {
     },
   });
   return verify.success;
+}
+
+// Wraps dispatchCreateJobDirect with the same orchestration_events telemetry
+// that the cli path emits, so dashboards / matrix-audit / scanner all stay
+// schema-stable. Returns boolean (mirrors dispatchOneAction's contract).
+async function dispatchCreateJobDirectWithTelemetry(action, cycleId) {
+  const dispatchedAt = new Date().toISOString();
+  const dispatchBase = {
+    project_id: 'awp',
+    cycle_id: cycleId,
+    source: 'hlo-daemon',
+    event_type: 'dispatch',
+    persona: action.agent.agent.name,
+    directive: `direct-create_job target=${action.configKey}|${action.scenarioId}`,
+    reasoning: action.reason || null,
+    meta: {
+      lifecycle: 'requested',
+      priority: action.priority,
+      action_kind: action.kind,
+      target_agent_wallet: action.agent.agent.wallet,
+      intended_config: action.configKey || null,
+      intended_scenario: action.scenarioId || null,
+      pick_source: action.pickSource || null,
+      dispatched_at: dispatchedAt,
+      dispatch_mode: 'direct-viem',
+    },
+  };
+  await emitOrchEvent(dispatchBase);
+
+  const t0 = Date.now();
+  const out = await dispatchCreateJobDirect(action);
+  const elapsedMs = Date.now() - t0;
+
+  if (!out.ok) {
+    console.log(`[dispatch-direct] FAILED ${action.agent.agent.name}: ${(out.error || '').slice(0, 160)}`);
+    await emitOrchEvent({
+      ...dispatchBase,
+      event_type: 'error',
+      reasoning: 'dispatch_failed',
+      meta: {
+        ...dispatchBase.meta,
+        lifecycle: 'failed',
+        error: out.error || 'unknown',
+        elapsed_ms: elapsedMs,
+        tx_hash: out.txHash || null,
+      },
+    });
+    return false;
+  }
+
+  await emitOrchEvent({
+    ...dispatchBase,
+    event_type: 'dispatch',
+    reasoning: 'dispatch_verified',
+    meta: {
+      ...dispatchBase.meta,
+      lifecycle: 'verified',
+      tx_hash: out.txHash,
+      job_id: out.jobId,
+      block_number: out.blockNumber,
+      elapsed_ms: elapsedMs,
+      title: out.title,
+    },
+  });
+  return true;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -904,9 +1288,13 @@ async function main() {
   console.log(`Mode:           ${DRY_RUN ? 'DRY RUN' : 'LIVE'}`);
   console.log(`Dispatch mode:  ${DISPATCH_MODE}${DISPATCH_MODE === 'http' ? ` (${GATEWAY_URL})` : ''}`);
   console.log(`Tick interval:  ${TICK_MS} ms`);
+  console.log(`Parallel limit: ${HLO_PARALLEL_LIMIT}`);
   console.log(`JobNFT V15:     ${JOBNFT_V15}`);
   console.log(`ReviewGate V4:  ${REVIEWGATE}`);
   console.log(`Agents:         ${AGENTS.map(a => a.name).join(', ')}`);
+
+  // Phase H — load agent keys for direct create_job dispatch
+  loadAgentKeys();
 
   await tick();
 
