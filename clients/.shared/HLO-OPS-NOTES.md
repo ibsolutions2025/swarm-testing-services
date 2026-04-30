@@ -28,18 +28,68 @@ First successful dispatch fired at 21:04:08 (5 min post-restart on the
 30s tick + RPC backfill). Three more in the following 10 min, all
 verify=true. Daemon is healthy.
 
-## Open ops gap — pm2 not auto-launched at Windows boot
+## Auto-launch fix shipped (Phase E.1, 2026-04-29)
 
 Default pm2 install on Windows does NOT register as a service. After a
 reboot or logout, hlo-daemon stays down until someone manually runs
-`pm2 resurrect` or `pm2 start ecosystem.config.cjs`.
+`pm2 resurrect`. Two outages in a 24h window made this Phase E priority 1.
 
-**Fix options (Phase E or operator concern):**
+**Shipped:** Task Scheduler entry `HLO-AutoResurrect` running
+`scripts/auto-resurrect.ps1` at user logon. Native Windows, no extra
+service deps.
+
+**Files:**
+- `C:\Users\isaia\.openclaw\hlo-daemon\scripts\auto-resurrect.ps1` —
+  PowerShell wrapper. Sleeps 15s for networking + user services, runs
+  `pm2 resurrect`, follows up with `pm2 list`. Logs everything to
+  `logs/auto-resurrect.log` for boot-time auditing. Idempotent —
+  re-running on top of a healthy pm2 is a no-op.
+- Task Scheduler entry `HLO-AutoResurrect`:
+  - Trigger: At logon (user `isaia`)
+  - Action: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File <script>`
+  - Settings: `AllowStartIfOnBatteries`, `DontStopIfGoingOnBatteries`,
+    `StartWhenAvailable`, `ExecutionTimeLimit 5m`, `RestartCount 3` /
+    `RestartInterval 1m` for transient-failure recovery
+  - Principal: interactive logon, RunLevel `Limited` (no admin needed)
+
+**Recreate from scratch:**
+```powershell
+$taskName = "HLO-AutoResurrect"
+$scriptPath = "C:\Users\isaia\.openclaw\hlo-daemon\scripts\auto-resurrect.ps1"
+$action = New-ScheduledTaskAction -Execute "powershell.exe" `
+  -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
+  -DontStopIfGoingOnBatteries -StartWhenAvailable `
+  -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
+  -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME `
+  -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
+  -Settings $settings -Principal $principal
+```
+
+**Verification:** simulated post-boot by killing pm2 + triggering the
+task manually:
+```
+pm2 kill                         # both pm2 + hlo-daemon down
+Start-ScheduledTask -TaskName "HLO-AutoResurrect"
+# 15s pre-resurrect delay + work + 5s post-list
+# auto-resurrect.log shows: resurrect exit: 0
+# pm2 list shows: hlo-daemon online
+```
+
+Logs (`logs/auto-resurrect.log`) record every boot for audit. If a
+future boot doesn't bring HLO back, that's the first place to look.
+
+## Other fix options considered (kept for record)
+
 1. `pm2-installer` (npm package that registers pm2 as a Windows service)
-2. Task Scheduler entry: "At logon, run pm2 resurrect"
-3. Cowork session-start hook that pm2-resurrects if hlo-daemon isn't online
-
-Recommendation: option 2 — Task Scheduler is native, no extra deps.
+   — heavier, more invasive, runs as SYSTEM rather than user, would
+   complicate Spark wallet env-var inheritance.
+2. Cowork session-start hook that pm2-resurrects if hlo-daemon isn't
+   online — only runs when Cowork is open, doesn't help with reboots
+   while Isaiah's away.
 
 ## Steady-state monitoring
 
