@@ -66,7 +66,17 @@ export async function GET(request: NextRequest) {
       return q;
     };
 
-    type LifecycleRow = Record<string, unknown>;
+    // Loose row shape — Supabase returns the row plus arbitrary extra columns
+    // (the migration adds new ones over time). We narrow the fields used by
+    // remapToIntended/cells aggregation; everything else is passed through.
+    type LifecycleRow = {
+      scenario_key: string;
+      config_key: string;
+      status: string;
+      onchain_job_id: number | null;
+      cell_audit?: unknown;
+      [k: string]: unknown;
+    };
     const results: LifecycleRow[] = [];
     let error: { message?: string } | null = null;
     let offset = 0;
