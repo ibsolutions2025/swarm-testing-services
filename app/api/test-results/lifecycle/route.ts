@@ -36,30 +36,50 @@ export async function GET(request: NextRequest) {
     const onchainJobId = searchParams.get("onchain_job_id");
 
     const admin = createAdminClient();
-    let query = admin
-      .from("lifecycle_results")
-      .select("*")
-      .eq("project_id", projectId)
-      .order("started_at", { ascending: false })
-      .limit(limit);
 
-    if (configKey) query = query.eq("config_key", configKey);
-    if (scenarioKey) query = query.eq("scenario_key", scenarioKey);
-    if (status) query = query.eq("status", status);
-    if (since) {
-      const sinceDate = new Date(since);
-      if (!isNaN(sinceDate.getTime())) {
-        // Filter on updated_at so the Operations live-timeline picks up
-        // rows whose steps were updated after the cursor, not just rows
-        // that were newly created.
-        query = query.gte("updated_at", sinceDate.toISOString());
+    // Build the base query each pass — Supabase REST silently caps single
+    // .select() responses at 1000 rows regardless of .limit(). We page
+    // explicitly with .range() until either we've hit the requested limit
+    // or the source returns fewer rows than the page size (end of data).
+    const PAGE_SIZE = 1000;
+    const buildQuery = () => {
+      let q = admin
+        .from("lifecycle_results")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("started_at", { ascending: false });
+      if (configKey) q = q.eq("config_key", configKey);
+      if (scenarioKey) q = q.eq("scenario_key", scenarioKey);
+      if (status) q = q.eq("status", status);
+      if (since) {
+        const sinceDate = new Date(since);
+        if (!isNaN(sinceDate.getTime())) {
+          // Filter on updated_at so the Operations live-timeline picks up
+          // rows whose steps were updated after the cursor, not just rows
+          // that were newly created.
+          q = q.gte("updated_at", sinceDate.toISOString());
+        }
       }
-    }
-    if (onchainJobId) {
-      query = query.eq("onchain_job_id", parseInt(onchainJobId, 10));
-    }
+      if (onchainJobId) {
+        q = q.eq("onchain_job_id", parseInt(onchainJobId, 10));
+      }
+      return q;
+    };
 
-    const { data: results, error } = await query;
+    type LifecycleRow = Record<string, unknown>;
+    const results: LifecycleRow[] = [];
+    let error: { message?: string } | null = null;
+    let offset = 0;
+    while (results.length < limit) {
+      const remaining = limit - results.length;
+      const pageEnd = offset + Math.min(PAGE_SIZE, remaining) - 1;
+      const { data, error: pageError } = await buildQuery().range(offset, pageEnd);
+      if (pageError) { error = pageError; break; }
+      if (!data || data.length === 0) break;
+      results.push(...(data as LifecycleRow[]));
+      if (data.length < PAGE_SIZE) break; // last page
+      offset += data.length;
+    }
     if (error) {
       // Table may not exist yet (migration 0002 is still in flight).
       // Return an empty matrix instead of 500 so the UI renders cleanly.

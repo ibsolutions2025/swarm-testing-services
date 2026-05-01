@@ -33,7 +33,7 @@ interface LifecycleResult {
   run_id: string;
   config_key: string;
   scenario_key: string;
-  status: 'running' | 'passed' | 'failed' | 'error' | 'na';
+  status: 'running' | 'passed' | 'failed' | 'error' | 'na' | 'correctly_blocked';
   steps: Array<{
     step: number;
     name: string;
@@ -115,11 +115,26 @@ interface ConfigData {
   };
 }
 
+// Phase A v2 — 6-bucket matrix per SWARM-V2-DESIGN.md section 4.
+//   passed             → green   (lifecycle terminal, no auditor flags)
+//   correctly_blocked  → AMBER/yellow (auditor categorized failure as
+//                        `correct_enforcement` — contract correctly enforced)
+//   failed             → red     (auditor categorized as agent_too_dumb /
+//                        mcp_product_gap / docs_product_gap / contract_flaw /
+//                        infra_issue)
+//   running            → BLUE    (in-flight — was yellow in V1; moved to blue
+//                        so amber/yellow can mean "correctly blocked")
+//   untested           → grey
+//   na                 → purple-ish grey (config + scenario invalid by rules)
+//
+// `scripted` and `error` are legacy V1 buckets; kept for backwards-compat
+// while the data layer transitions, but new rows shouldn't surface them.
 const STATUS_ICONS: Record<string, string> = {
   untested: '⬜',
   scripted: '📝',
   running: '🔄',
   passed: '✅',
+  correctly_blocked: '🟨',
   failed: '❌',
   error: '⚠️',
   na: '🚫',
@@ -128,21 +143,34 @@ const STATUS_ICONS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   untested: 'bg-zinc-800 border-zinc-700',
   scripted: 'bg-blue-900/30 border-blue-700',
-  running: 'bg-yellow-900/30 border-yellow-600',
+  running: 'bg-blue-900/30 border-blue-600',          // BLUE in V2
   passed: 'bg-emerald-900/30 border-emerald-600',
+  correctly_blocked: 'bg-amber-900/30 border-amber-500', // NEW — distinct from red
   failed: 'bg-red-900/30 border-red-600',
   error: 'bg-orange-900/30 border-orange-600',
-  na: 'bg-zinc-900/50 border-zinc-800 opacity-30',
+  na: 'bg-purple-900/20 border-purple-900/40 opacity-40',
 };
 
 const STATUS_TEXT: Record<string, string> = {
   untested: 'text-zinc-500',
   scripted: 'text-blue-400',
-  running: 'text-yellow-400',
+  running: 'text-blue-300',
   passed: 'text-emerald-400',
+  correctly_blocked: 'text-amber-300',
   failed: 'text-red-400',
   error: 'text-orange-400',
-  na: 'text-zinc-600',
+  na: 'text-purple-300/50',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  untested: 'Untested',
+  scripted: 'Scripted',
+  running: 'Running',
+  passed: 'Passed',
+  correctly_blocked: 'Correctly Blocked',
+  failed: 'Failed',
+  error: 'Error',
+  na: 'N/A',
 };
 
 function isCellNA(config: Config, scenario: Scenario, naRules: NaRule[]): boolean {
@@ -475,9 +503,22 @@ function getCellResults(
 }
 
 // Validate a single result — does it have real on-chain evidence for its scenario?
+//
+// Source of truth = scanner columns. framework/scanner.mjs writes
+// `expected_reviews` and `observed_reviews` per row based on the canonical
+// AWP review-count rules (2 for HARD_ONLY, 5 for SOFT/HARD_THEN_SOFT). We
+// trust those columns and DON'T re-derive from steps[] — the scanner does
+// not embed every ReviewSubmitted event into steps[]; it tracks the count
+// separately. Re-deriving from steps[] yields false negatives because
+// steps[] only carries the event-proof rows the scanner explicitly pushes.
+//
+// `scenario` retained for signature compatibility; the config.json-derived
+// review count was wrong (4 of 20 scenarios had submit-reviews defined,
+// disagreeing with the contract-driven invariant the scanner enforces).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function validateResult(
   result: LifecycleResult,
-  scenario: Scenario
+  _scenario: Scenario
 ): boolean {
   const steps = result.steps || [];
   const onChainEvents = ['JobCreated','WorkSubmitted','ValidatorClaimed','SubmissionRejected','SubmissionApproved','ValidatorRewarded','DecryptionKeyReleased','ReviewSubmitted','NewFeedback','ScriptResultRecorded'];
@@ -485,16 +526,12 @@ function validateResult(
 
   if (!hasOnChainEvidence && steps.length === 0) return false;
 
-  // Require reviews for completed scenarios
-  if (hasOnChainEvidence) {
-    const reviewStep = scenario.steps?.find((st: { action: string }) => st.action === 'submit-reviews');
-    if (reviewStep?.params?.reviews) {
-      const expectedReviewCount = (reviewStep.params.reviews as Array<unknown>).length;
-      const actualReviewCount = steps.filter(
-        (s: { name: string }) => s.name === 'ReviewSubmitted' || s.name === 'NewFeedback'
-      ).length;
-      if (actualReviewCount < expectedReviewCount) return false;
-    }
+  // Trust scanner-recorded review counts when present. Both fields are
+  // nullable on legacy rows scanned before Phase A landed; in that case
+  // fall through and accept the row on on-chain evidence alone.
+  const r = result as unknown as { expected_reviews?: number | null; observed_reviews?: number | null };
+  if (r.expected_reviews != null && r.observed_reviews != null) {
+    if (r.observed_reviews < r.expected_reviews) return false;
   }
 
   return true;
@@ -589,6 +626,7 @@ export default function LifecycleTestsTab() {
     let naCount = 0;
     let passedCount = 0;
     let failedCount = 0;
+    let correctlyBlockedCount = 0;
     let runningCount = 0;
     let errorCount = 0;
 
@@ -600,6 +638,7 @@ export default function LifecycleTestsTab() {
         }
         const status = getCellStatus(config, scenario);
         if (status === 'passed') passedCount++;
+        else if (status === 'correctly_blocked') correctlyBlockedCount++;
         else if (status === 'failed') failedCount++;
         else if (status === 'running') runningCount++;
         else if (status === 'error') errorCount++;
@@ -611,12 +650,17 @@ export default function LifecycleTestsTab() {
     return {
       total,
       passed: passedCount,
+      correctly_blocked: correctlyBlockedCount,
       failed: failedCount,
       running: runningCount,
       error: errorCount,
-      untested: testable - (passedCount + failedCount + runningCount + errorCount),
+      untested: testable - (passedCount + correctlyBlockedCount + failedCount + runningCount + errorCount),
       na: naCount,
-      coverage: testable > 0 ? ((passedCount / testable) * 100).toFixed(1) : '0',
+      // Coverage now counts both green (real pass) and amber (correct enforcement)
+      // as "covered" — both represent the swarm having exercised the cell.
+      coverage: testable > 0
+        ? (((passedCount + correctlyBlockedCount) / testable) * 100).toFixed(1)
+        : '0',
     };
   }, [configData, results]);
 
@@ -732,8 +776,8 @@ export default function LifecycleTestsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Summary Bar */}
-      <div className="grid grid-cols-7 gap-4">
+      {/* Summary Bar — 6-bucket layout per SWARM-V2-DESIGN.md section 4 */}
+      <div className="grid grid-cols-8 gap-4">
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
           <div className="text-xs text-zinc-500 mb-1">Total Cells</div>
           <div className="text-2xl font-bold text-zinc-200">{stats.total}</div>
@@ -742,13 +786,17 @@ export default function LifecycleTestsTab() {
           <div className="text-xs text-zinc-500 mb-1">Passed</div>
           <div className="text-2xl font-bold text-emerald-400">{stats.passed}</div>
         </div>
+        <div className="bg-zinc-900 rounded-xl border border-amber-900/40 p-4">
+          <div className="text-xs text-zinc-500 mb-1" title="Failure auditor categorized as correct_enforcement — contract working as designed.">Correctly Blocked</div>
+          <div className="text-2xl font-bold text-amber-300">{stats.correctly_blocked}</div>
+        </div>
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
           <div className="text-xs text-zinc-500 mb-1">Failed</div>
           <div className="text-2xl font-bold text-red-400">{stats.failed}</div>
         </div>
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
           <div className="text-xs text-zinc-500 mb-1">Running</div>
-          <div className="text-2xl font-bold text-yellow-400">{stats.running}</div>
+          <div className="text-2xl font-bold text-blue-300">{stats.running}</div>
         </div>
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
           <div className="text-xs text-zinc-500 mb-1">Untested</div>
@@ -756,10 +804,10 @@ export default function LifecycleTestsTab() {
         </div>
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
           <div className="text-xs text-zinc-500 mb-1">N/A</div>
-          <div className="text-2xl font-bold text-zinc-600">{stats.na}</div>
+          <div className="text-2xl font-bold text-purple-300/60">{stats.na}</div>
         </div>
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4">
-          <div className="text-xs text-zinc-500 mb-1">Coverage</div>
+          <div className="text-xs text-zinc-500 mb-1" title="Passed + Correctly Blocked — both represent cells the swarm has actually exercised.">Coverage</div>
           <div className="text-2xl font-bold text-blue-400">{stats.coverage}%</div>
         </div>
       </div>
@@ -784,6 +832,7 @@ export default function LifecycleTestsTab() {
           <option value="all">All Statuses</option>
           <option value="untested">Untested</option>
           <option value="passed">Passed</option>
+          <option value="correctly_blocked">Correctly Blocked</option>
           <option value="failed">Failed</option>
           <option value="running">Running</option>
         </select>
@@ -888,14 +937,15 @@ export default function LifecycleTestsTab() {
         ))}
       </div>
 
-      {/* Legend */}
+      {/* Legend — 6-bucket palette per SWARM-V2-DESIGN.md */}
       <div className="flex flex-wrap gap-4 text-xs text-zinc-400">
         <span className="flex items-center gap-1"><span className="text-lg">⬜</span> Untested</span>
         <span className="flex items-center gap-1"><span className="text-lg">✅</span> Passed</span>
+        <span className="flex items-center gap-1"><span className="text-lg">🟨</span> <span className="text-amber-300">Correctly Blocked</span></span>
         <span className="flex items-center gap-1"><span className="text-lg">❌</span> Failed</span>
         <span className="flex items-center gap-1"><span className="text-lg">🔄</span> Running</span>
         <span className="flex items-center gap-1"><span className="text-lg">⚠️</span> Error</span>
-        <span className="flex items-center gap-1"><span className="text-lg">🚫</span> N/A</span>
+        <span className="flex items-center gap-1"><span className="text-lg">🚫</span> <span className="text-purple-300/70">N/A</span></span>
       </div>
 
       {/* Cell Detail Modal */}
