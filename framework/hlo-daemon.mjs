@@ -913,6 +913,56 @@ async function emitOrchEvent(row) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Phase B — write a tx_attempts row for every dispatched transaction.
+// Indexer reads receipts and updates outcome + revert_reason. Verifier
+// reads here for negative scenarios (s13, s14, s15).
+//
+// initialOutcome: 'pending' (no receipt yet), 'success' (already-confirmed),
+//                 'reverted' (already-known revert), 'timeout' (gave up).
+// ─────────────────────────────────────────────────────────────────
+async function emitTxAttempt({
+  txHash,
+  intendedAction,
+  intendedJobId = null,
+  actor,
+  outcome = 'pending',
+  revertReason = null,
+  rawRevertData = null,
+  blockNumber = null,
+  meta = null,
+}) {
+  if (DRY_RUN || !STS_KEY || !txHash || !actor) return;
+  try {
+    const r = await fetch(`${STS_URL}/rest/v1/tx_attempts?on_conflict=project_id,tx_hash`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: STS_KEY, Authorization: `Bearer ${STS_KEY}`,
+        Prefer: 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify({
+        project_id: 'awp',
+        tx_hash: txHash,
+        block_number: blockNumber,
+        intended_action: intendedAction,
+        intended_job_id: intendedJobId,
+        actor: actor.toLowerCase(),
+        outcome,
+        revert_reason: revertReason,
+        raw_revert_data: rawRevertData,
+        meta,
+      }),
+    });
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      console.log(`  [WARN tx_attempts upsert] status=${r.status} body=${txt.slice(0, 240)}`);
+    }
+  } catch (e) {
+    console.log(`  [WARN tx_attempts upsert] network: ${e.message?.slice(0, 200)}`);
+  }
+}
+
 async function emitHeartbeat(meta) {
   if (DRY_RUN || !STS_KEY) return;
   try {
@@ -1121,6 +1171,25 @@ async function dispatchCreateJobDirectWithTelemetry(action, cycleId) {
         tx_hash: out.txHash || null,
       },
     });
+    // Phase B — record the failed attempt so the verifier can detect
+    // expected-revert scenarios (s13, s15). The indexer will fill outcome
+    // + revert_reason from the receipt if a tx hash exists; otherwise
+    // mark 'reverted' immediately based on the simulate revert message.
+    if (out.txHash || (out.error || '').toLowerCase().includes('simulate revert')) {
+      await emitTxAttempt({
+        txHash: out.txHash || `simulate-${Date.now()}-${action.agent.agent.wallet.slice(2, 10)}`,
+        intendedAction: 'createJob',
+        intendedJobId: out.jobId || null,
+        actor: action.agent.agent.wallet,
+        outcome: out.txHash ? 'pending' : 'reverted',
+        revertReason: out.txHash ? null : extractRevertName(out.error || ''),
+        rawRevertData: out.error || null,
+        meta: {
+          intended_config: action.configKey,
+          intended_scenario: action.scenarioId,
+        },
+      });
+    }
     return false;
   }
 
@@ -1138,7 +1207,46 @@ async function dispatchCreateJobDirectWithTelemetry(action, cycleId) {
       title: out.title,
     },
   });
+  // Phase B — successful createJob attempt
+  await emitTxAttempt({
+    txHash: out.txHash,
+    intendedAction: 'createJob',
+    intendedJobId: out.jobId,
+    actor: action.agent.agent.wallet,
+    outcome: 'success',
+    blockNumber: out.blockNumber,
+    meta: {
+      intended_config: action.configKey,
+      intended_scenario: action.scenarioId,
+    },
+  });
   return true;
+}
+
+// V15/V4 custom error names that may appear inside a viem revert message.
+// Imported lazily to avoid pulling lib/awp at module-init when env is missing.
+const _KNOWN_ERR_NAMES = [
+  'RatingGateFailed','NotApprovedWorker','NotApprovedValidator','RewardZero','TitleRequired',
+  'DescriptionRequired','RequirementsRequired','InvalidValidationMode','InvalidSubmissionMode',
+  'ScriptCIDRequired','ScriptCIDNotAllowed','InstructionsRequired','WindowRequiredTimed',
+  'WindowMustBeZero','HardOnlyValRating','HardOnlyApprovedVal','InsufficientAllowance',
+  'InsufficientBalance','TransferFromFailed','JobNotFound','JobNotOpenForValidators',
+  'JobNotOpenForSubmissions','JobNotActive','JobNotCancellable','PosterCannotValidate',
+  'PosterCannotSubmit','WorkerCannotValidate','ValidatorCannotSubmit','OnlyPoster',
+  'OnlyActiveValidator','OnlyActiveValidatorReject','RejectAllNotAllowed','ResubmissionNotAllowed',
+  'AlreadyActiveValidator','AlreadyInWaitlist','AlreadyServed','AlreadyReviewed',
+  'NoValidatorNeeded','NoValidatorHardOnly','NoActiveValidator','NoSubmissionsToReject',
+  'NoSubmissionsYet','NoScriptSoftOnly','InvalidSubmissionIndex',
+];
+function extractRevertName(msg) {
+  if (!msg) return null;
+  for (const name of _KNOWN_ERR_NAMES) {
+    if (msg.includes(name)) return name;
+  }
+  // Fallback: pull the bracketed shortMessage if present
+  const m = msg.match(/reverted with the following reason:\s*([^\n]+)/);
+  if (m) return m[1].trim().slice(0, 200);
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────

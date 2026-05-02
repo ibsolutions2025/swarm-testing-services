@@ -4,6 +4,14 @@ out/
 build/
 dist/
 
+# Compiled JS for lib/awp/* + lib/insider-info-regex.ts (sources are .ts;
+# `npm run build:lib` regenerates these for runtime consumption by .mjs scripts
+# like framework/scanner.mjs and framework/hlo-daemon.mjs).
+lib/awp/*.js
+lib/awp/*.js.map
+lib/insider-info-regex.js
+lib/insider-info-regex.js.map
+
 .env
 .env.local
 .env.*.local
