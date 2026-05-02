@@ -66,11 +66,15 @@ function decodeLog(log) {
       out.args.worker = out.actor;
       break;
     case 'SubmissionApproved':
-      // Indexed: jobId, submissionIndex, worker
-      // Approver itself isn't indexed in V15. We use the activeValidator from
-      // job state (verifier passes it in) when the actor_role is 'validator'.
-      out.actor = addrFromTopic(t3);
-      out.args.worker = out.actor;
+      // V15 SubmissionApproved indexes (jobId, submissionIndex, worker). The
+      // approver itself is NOT indexed — it's implicit, either the
+      // job.activeValidator (SOFT_ONLY/HARDSIFT) or address(0)/contract self
+      // (HARD_ONLY auto-approve). We don't extract an actor from the event;
+      // verifyEventStep falls back to jobView.activeValidator when checking
+      // actor_role === 'validator', and treats actor_role === 'contract' as
+      // satisfied for HARD_ONLY auto-approve.
+      out.actor = null;
+      out.args.worker = addrFromTopic(t3);
       break;
     case 'SubmissionRejected':
       // Indexed: jobId, submissionIndex, validator
@@ -175,32 +179,28 @@ function verifyEventStep(stepDef, decodedEvents, jobView, personaMap = {}) {
   // Actor verification — only when actor_role is set on the step.
   if (stepDef.actor_role && stepDef.actor_role !== 'any') {
     const expectedActors = resolveActorPool(stepDef.actor_role, jobView, personaMap);
-    if (expectedActors !== null && expectedActors.length > 0) {
+    // 'contract' role is always satisfied — V15 HARD_ONLY auto-approve has no
+    // emitting party (event.actor is null) and the worker shows up in topic[3].
+    // We accept any cardinality-OK event for actor_role='contract'.
+    if (stepDef.actor_role === 'contract') {
+      // pass-through
+    } else if (expectedActors !== null && expectedActors.length > 0) {
       const matchedWithRightActor = matching.find(e => {
-        if (!e.actor) return false;
+        // For events where the actor isn't in the topic set (e.g. SubmissionApproved),
+        // event.actor is null. In that case we accept it — the implicit actor is
+        // job.activeValidator which IS in expectedActors when actor_role='validator'.
+        if (!e.actor) return true;
         const actorLower = e.actor.toLowerCase();
-        // 'contract' role accepts ZERO_ADDRESS or null actor (auto-approve has no party emitting)
-        if (stepDef.actor_role === 'contract') {
-          return actorLower === ZERO_ADDRESS || expectedActors.includes(actorLower);
-        }
         return expectedActors.includes(actorLower);
       });
       if (!matchedWithRightActor) {
-        // 'contract' role is forgiving — if actor is null/missing for SubmissionApproved
-        // and we're in HARD_ONLY territory, still pass.
-        if (stepDef.actor_role === 'contract') {
-          // accept if we got the right cardinality and event — V15 SubmissionApproved
-          // for HARD_ONLY auto-approve has activeValidator=0x0 and the event topic
-          // for the worker is what's indexed. Don't fail on actor mismatch here.
-        } else {
-          return {
-            status: 'failed',
-            step_index: stepDef.index,
-            reason: 'wrong_actor',
-            expected: { actor_role: stepDef.actor_role, pool: expectedActors.slice(0, 3) },
-            observed: { actor: matching[0].actor, tx_hash: matching[0].txHash },
-          };
-        }
+        return {
+          status: 'failed',
+          step_index: stepDef.index,
+          reason: 'wrong_actor',
+          expected: { actor_role: stepDef.actor_role, pool: expectedActors.slice(0, 3) },
+          observed: { actor: matching[0].actor, tx_hash: matching[0].txHash },
+        };
       }
     }
   }

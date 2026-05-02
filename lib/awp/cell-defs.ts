@@ -250,6 +250,7 @@ export const PREDICATES: Record<string, ScenarioPredicate> = {
   "s02-validator-first": (c) => {
     if (c.job.status !== 2) return false;
     if (c.configParams.validationMode === 0) return false;
+    if (hasRatingGate(c.configParams)) return false; // s12 territory
     const vc = c.events.ValidatorClaimed;
     const ws = c.events.WorkSubmitted;
     if (!vc?.length || !ws?.length) return false;
