@@ -10,10 +10,10 @@ import { createAdminClient } from "@/lib/supabase-admin";
  *   1. Try to create a new user via the service-role admin client with
  *      email_confirm=true so they can sign in immediately (no confirmation
  *      email, no magic link).
- *   2. If the email already exists, look it up and update the password
- *      instead — this lets users who originally signed up via magic link
- *      convert to password auth without losing their account.
- *   3. Finally, sign the user in server-side so the session cookie is set.
+ *   2. If the email already exists, return 409 and ask the caller to log in.
+ *      We never reset an existing account's password from an unauthenticated
+ *      signup request (that would be account takeover — see S1).
+ *   3. For a newly created user, sign them in server-side so the cookie is set.
  */
 export async function POST(req: NextRequest) {
   let body: any;
@@ -61,27 +61,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: msg }, { status: 500 });
     }
 
-    // 2) Existing user — find them, then reset password.
-    const { data: list, error: listErr } = await admin.auth.admin.listUsers();
-    if (listErr) {
-      return NextResponse.json({ error: listErr.message }, { status: 500 });
-    }
-    const existing = list.users.find(
-      (u) => (u.email ?? "").toLowerCase() === email.toLowerCase()
+    // 2) Existing user — DO NOT reset the password or sign them in. Resetting an
+    //    existing account's password from an unauthenticated signup request with
+    //    no proof of ownership is an account-takeover vector (S1). Return a clear
+    //    409 and direct the caller to log in instead.
+    return NextResponse.json(
+      { error: "An account with this email already exists. Please log in." },
+      { status: 409 }
     );
-    if (!existing) {
-      return NextResponse.json(
-        { error: "User exists but could not be found for update." },
-        { status: 500 }
-      );
-    }
-    const { error: updErr } = await admin.auth.admin.updateUserById(
-      existing.id,
-      { password, email_confirm: true }
-    );
-    if (updErr) {
-      return NextResponse.json({ error: updErr.message }, { status: 500 });
-    }
   }
 
   // 3) Sign the user in through the anon/server client so cookies are set.
