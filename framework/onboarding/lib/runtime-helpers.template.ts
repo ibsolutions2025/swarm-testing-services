@@ -82,19 +82,117 @@ export function configToParams(key: string): Record<string, unknown> {
 
 /**
  * isCellApplicable(configParams, scenarioId) — does the scenario apply to
- * this cell? Evaluates the scenario's applicability expression as a JS
- * boolean expression with configParams in scope.
+ * this cell? Evaluates the scenario's applicability expression as a
+ * restricted boolean predicate over configParams.
  *
  * Applicability strings come from engine output (LLM-derived) or HITL
  * edits (customer-typed). They reference V15 param names like
- * `validationMode`, `submissionMode`, `allowResubmission`. The eval is
- * via `new Function("p", "with (p) { return (...); }")` — bounded by the
- * trust we have in the source: this is greenlit lib code that the
- * customer's already reviewed at HITL. No runtime user input flows here.
+ * `validationMode`, `submissionMode`, `allowResubmission`. The parser only
+ * accepts identifiers, literals, comparisons, parentheses, and boolean
+ * operators. Unsupported syntax fails closed.
  *
  * Common identifier substitutions (HARD_ONLY → 0, etc.) are applied as a
  * fallback if the first eval throws on an undefined reference.
  */
+const APPLICABILITY_ENUMS: Record<string, string | number | boolean> = {
+  HARD_ONLY: 0,
+  SOFT_ONLY: 1,
+  HARD_THEN_SOFT: 2,
+  HARDSIFT: 2,
+  FCFS: 0,
+  TIMED: 1,
+  true: true,
+  false: false,
+};
+
+function stripOuterParens(value: string): string {
+  let expr = value.trim();
+  while (expr.startsWith("(") && expr.endsWith(")")) {
+    let depth = 0;
+    let wrapsAll = true;
+    let quote = "";
+    for (let i = 0; i < expr.length; i++) {
+      const char = expr[i];
+      if (quote) {
+        if (char === "\\") i++;
+        else if (char === quote) quote = "";
+        continue;
+      }
+      if (char === "'" || char === '"') { quote = char; continue; }
+      if (char === "(") depth++;
+      if (char === ")") depth--;
+      if (depth === 0 && i < expr.length - 1) { wrapsAll = false; break; }
+      if (depth < 0) throw new Error("unbalanced applicability expression");
+    }
+    if (!wrapsAll || depth !== 0 || quote) break;
+    expr = expr.slice(1, -1).trim();
+  }
+  return expr;
+}
+
+function splitTopLevel(expr: string, operator: "||" | "&&"): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quote = "";
+  let start = 0;
+  for (let i = 0; i < expr.length; i++) {
+    const char = expr[i];
+    if (quote) {
+      if (char === "\\") i++;
+      else if (char === quote) quote = "";
+      continue;
+    }
+    if (char === "'" || char === '"') { quote = char; continue; }
+    if (char === "(") depth++;
+    else if (char === ")") depth--;
+    if (depth < 0) throw new Error("unbalanced applicability expression");
+    if (depth === 0 && expr.slice(i, i + 2) === operator) {
+      parts.push(expr.slice(start, i));
+      start = i + 2;
+      i++;
+    }
+  }
+  if (depth !== 0 || quote) throw new Error("invalid applicability expression");
+  if (parts.length) parts.push(expr.slice(start));
+  return parts;
+}
+
+function resolveApplicabilityValue(token: string, params: Record<string, unknown>): unknown {
+  const value = stripOuterParens(token);
+  if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1).replace(/\\([\\'\"])/g, "$1");
+  }
+  if (Object.prototype.hasOwnProperty.call(APPLICABILITY_ENUMS, value)) return APPLICABILITY_ENUMS[value];
+  if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(value) && Object.prototype.hasOwnProperty.call(params, value)) {
+    return params[value];
+  }
+  throw new Error("unsupported applicability operand");
+}
+
+function safeEvaluateApplicability(expression: string, params: Record<string, unknown>): boolean {
+  const expr = stripOuterParens(expression);
+  const orParts = splitTopLevel(expr, "||");
+  if (orParts.length) return orParts.some((part) => safeEvaluateApplicability(part, params));
+  const andParts = splitTopLevel(expr, "&&");
+  if (andParts.length) return andParts.every((part) => safeEvaluateApplicability(part, params));
+  if (expr.startsWith("!")) return !safeEvaluateApplicability(expr.slice(1), params);
+
+  const comparison = expr.match(/^(.+?)\s*(===|!==|==|!=|>=|<=|>|<)\s*(.+)$/);
+  if (!comparison) return Boolean(resolveApplicabilityValue(expr, params));
+  const left = resolveApplicabilityValue(comparison[1], params);
+  const right = resolveApplicabilityValue(comparison[3], params);
+  switch (comparison[2]) {
+    case "===": case "==": return left === right;
+    case "!==": case "!=": return left !== right;
+    case ">": return typeof left === "number" && typeof right === "number" && left > right;
+    case "<": return typeof left === "number" && typeof right === "number" && left < right;
+    case ">=": return typeof left === "number" && typeof right === "number" && left >= right;
+    case "<=": return typeof left === "number" && typeof right === "number" && left <= right;
+    default: return false;
+  }
+}
+
 export function isCellApplicable(configParams: Record<string, unknown>, scenarioId: string): boolean {
   const scenario = ALL_SCENARIOS.find((s: { id: string }) => s.id === scenarioId);
   if (!scenario) return false;
@@ -106,9 +204,7 @@ export function isCellApplicable(configParams: Record<string, unknown>, scenario
   // (per tsconfig.lib.json) which permits `with` in non-strict mode. We wrap
   // the body in a try/catch + retry-with-enum-substitution.
   const tryEval = (expr: string): boolean => {
-    // eslint-disable-next-line no-new-func
-    const fn = new Function("p", `with (p) { return (${expr}); }`);
-    return Boolean(fn(configParams));
+    return safeEvaluateApplicability(expr, configParams);
   };
 
   try {

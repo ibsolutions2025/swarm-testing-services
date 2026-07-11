@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase-admin";
+import { createServerClient } from "@/lib/supabase-server";
 import {
   HEARTBEAT_COMPONENTS,
   type Heartbeat,
@@ -11,15 +11,7 @@ import {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type"
-};
-
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 200, headers: corsHeaders });
-}
+const privateHeaders = { "Cache-Control": "private, no-store" };
 
 /**
  * GET /api/test-results/heartbeats?project=awp
@@ -37,11 +29,28 @@ export async function OPTIONS() {
  * even though rows were landing in system_heartbeats every 15 min.
  */
 export async function GET(request: NextRequest) {
+  const supabase = createServerClient();
+  const {
+    data: { user },
+    error: authError
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { error: "Authentication required" },
+      { status: 401, headers: privateHeaders }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("project") || "awp";
+  if (!/^[a-z0-9-]{1,64}$/.test(projectId)) {
+    return NextResponse.json(
+      { error: "Invalid project identifier" },
+      { status: 400, headers: privateHeaders }
+    );
+  }
 
   try {
-    const admin = createAdminClient();
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const emptyState: HeartbeatComponentState = { last: null, count24h: 0 };
@@ -58,15 +67,15 @@ export async function GET(request: NextRequest) {
       // doesn't go dark mid-cutover when both daemons are momentarily live.
       const componentPrefix = `${component}%`;
       const [lastRes, countRes] = await Promise.all([
-        admin
+        supabase
           .from("system_heartbeats")
-          .select("*")
+          .select("id,project_id,component,ran_at,outcome,actions_count,note,meta")
           .eq("project_id", projectId)
           .like("component", componentPrefix)
           .order("ran_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        admin
+        supabase
           .from("system_heartbeats")
           .select("*", { count: "exact", head: true })
           .eq("project_id", projectId)
@@ -83,11 +92,11 @@ export async function GET(request: NextRequest) {
             components,
             table_missing: true
           };
-          return NextResponse.json(res, { headers: corsHeaders });
+          return NextResponse.json(res, { headers: privateHeaders });
         }
         return NextResponse.json(
           { error: msg, components } as Record<string, unknown>,
-          { status: 500, headers: corsHeaders }
+          { status: 500, headers: privateHeaders }
         );
       }
 
@@ -98,11 +107,12 @@ export async function GET(request: NextRequest) {
     }
 
     const body: HeartbeatsResponse = { components };
-    return NextResponse.json(body, { headers: corsHeaders });
-  } catch (err: any) {
+    return NextResponse.json(body, { headers: privateHeaders });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json(
-      { error: err?.message || "Internal server error" },
-      { status: 500, headers: corsHeaders }
+      { error: message },
+      { status: 500, headers: privateHeaders }
     );
   }
 }

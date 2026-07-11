@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createServerClient } from "@/lib/supabase-server";
+import { createAdminClient } from "@/lib/supabase-admin";
 import { applyEdits, type Axis, type Scenario, type Rule, type EditRow } from "@/lib/onboarding-patches";
 import { buildOverrideFiles } from "@/lib/cutover-render";
 
@@ -64,14 +65,28 @@ function extractJsonArray(src: string, exportName: string): unknown[] {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { runId?: string };
-  try { body = await req.json(); } catch { return NextResponse.json({ error: "invalid json" }, { status: 400 }); }
-  const runId = body.runId;
-  if (!runId) return NextResponse.json({ error: "runId required" }, { status: 400 });
+  const contentLength = Number(req.headers.get("content-length") || 0);
+  if (Number.isFinite(contentLength) && contentLength > 16_384) {
+    return NextResponse.json({ error: "request body too large" }, { status: 413 });
+  }
 
   const supabase = createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
+  if (process.env.STS_ALLOW_CODE_CUTOVER !== "true") {
+    return NextResponse.json({ error: "generated-code cutover is disabled" }, { status: 403 });
+  }
+
+  let body: { runId?: string };
+  try {
+    const rawBody = await req.text();
+    if (Buffer.byteLength(rawBody, "utf8") > 16_384) {
+      return NextResponse.json({ error: "request body too large" }, { status: 413 });
+    }
+    body = JSON.parse(rawBody) as { runId?: string };
+  } catch { return NextResponse.json({ error: "invalid json" }, { status: 400 }); }
+  const runId = body.runId;
+  if (!runId) return NextResponse.json({ error: "runId required" }, { status: 400 });
 
   const { data: run } = await supabase
     .from("onboarding_runs")
@@ -169,30 +184,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `VPS cutover unreachable: ${e instanceof Error ? e.message : String(e)}` }, { status: 503 });
   }
 
-  // Insert/update client_libs row
-  const { error: libErr } = await supabase
-    .from("client_libs")
-    .upsert(
-      {
-        run_id: runId,
-        user_id: user.id,
-        slug,
-        user_short: userShort,
-        lib_path: targetLibDir + "/",
-      },
-      { onConflict: "slug,user_short" }
-    );
-  if (libErr) {
-    return NextResponse.json({ error: `client_libs insert failed: ${libErr.message}` }, { status: 500 });
-  }
-
-  // Flip run status to greenlit (idempotent on re-greenlight)
-  const { error: statusErr } = await supabase
-    .from("onboarding_runs")
-    .update({ status: "greenlit" })
-    .eq("run_id", runId);
-  if (statusErr) {
-    return NextResponse.json({ error: `status flip failed: ${statusErr.message}` }, { status: 500 });
+  // Finalize the database side atomically after the idempotent filesystem
+  // cutover. The RPC verifies ownership/status again under a row lock.
+  const admin = createAdminClient();
+  const { error: finalizeError } = await admin.rpc("finalize_onboarding_greenlight", {
+    p_run_id: runId,
+    p_user_id: user.id,
+    p_slug: slug,
+    p_user_short: userShort,
+    p_lib_path: targetLibDir + "/"
+  });
+  if (finalizeError) {
+    return NextResponse.json({ error: `database finalization failed: ${finalizeError.message}` }, { status: 500 });
   }
 
   return NextResponse.json({

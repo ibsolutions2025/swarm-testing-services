@@ -97,7 +97,8 @@ async function emitOrchestrationEvent(fields) {
   }
 }
 
-const RPC       = process.env.AWP_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/xlgHg3R-suQ_fJKc3vN39';
+const RPC       = (process.env.AWP_RPC_URL || process.env.ALCHEMY_RPC || '').trim();
+if (!RPC) throw new Error('AWP_RPC_URL or ALCHEMY_RPC is required');
 const JOB_NFT   = '0xc95ed85a6722399ee8eaa878adec79a8bea3c895';
 const MOCK_USDC = '0x7ae8519d5fb7be655be9846553a595de8e00c209';
 const SCENARIOS_FILE = '/root/test-swarm/intended-scenarios.json';

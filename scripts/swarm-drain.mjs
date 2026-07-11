@@ -107,7 +107,8 @@ async function emitOrchestrationEvent(fields) {
 // ============================================================
 // Config
 // ============================================================
-const RPC       = process.env.AWP_RPC_URL || 'https://base-sepolia.g.alchemy.com/v2/xlgHg3R-suQ_fJKc3vN39';
+const RPC       = (process.env.AWP_RPC_URL || process.env.ALCHEMY_RPC || '').trim();
+if (!RPC) throw new Error('AWP_RPC_URL or ALCHEMY_RPC is required');
 const JOB_NFT   = '0xc95ed85a6722399ee8eaa878adec79a8bea3c895'; // V14
 const RG        = '0x7856191147766f4421aaa312def42a885820550d'; // V3
 const ZERO_B32  = '0x0000000000000000000000000000000000000000000000000000000000000000';

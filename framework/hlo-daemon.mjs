@@ -48,12 +48,13 @@ import {
   checkAgentEligibility,
 } from '../lib/awp/index.js';
 import { assertInsiderInfoClean, findInsiderInfoLeaks } from '../lib/insider-info-regex.js';
+import { resolveDispatchMode } from './dispatch-mode.mjs';
 
 // ─────────────────────────────────────────────────────────────────
 // Config
 // ─────────────────────────────────────────────────────────────────
-const ALCHEMY_RPC = process.env.ALCHEMY_RPC
-  || 'https://base-sepolia.g.alchemy.com/v2/xlgHg3R-suQ_fJKc3vN39';
+const ALCHEMY_RPC = (process.env.ALCHEMY_RPC || '').trim();
+if (!ALCHEMY_RPC) throw new Error('ALCHEMY_RPC is required');
 const JOBNFT_V15 = process.env.AWP_JOBNFT  || CONTRACT_ADDRESSES.JobNFT;
 const REVIEWGATE = process.env.AWP_RG      || CONTRACT_ADDRESSES.ReviewGate;
 const USDC_ADDR  = CONTRACT_ADDRESSES.MockUSDC;
@@ -67,7 +68,10 @@ const RUN_ONCE = ARGV.includes('--once');
 const TICK_MS = parseInt(argVal('--tick-ms', '30000'));
 // Dispatch mode env: prefer DISPATCH_MODE (Phase-A-naming), accept legacy
 // HLO_DISPATCH_MODE for backwards compat. Defaults to dryrun.
-const DISPATCH_MODE = process.env.DISPATCH_MODE || process.env.HLO_DISPATCH_MODE || (DRY_RUN ? 'dryrun' : 'dryrun');
+const DISPATCH_MODE = resolveDispatchMode();
+if (DISPATCH_MODE !== 'dryrun' && !STS_KEY) {
+  throw new Error('STS_SUPABASE_KEY is required whenever HLO dispatch writes are enabled');
+}
 const GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL || '';
 const GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN || '';
 // Path to openclaw CLI binary on this host. Defaults to the standard npm

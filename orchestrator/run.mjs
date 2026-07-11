@@ -1,21 +1,37 @@
 #!/usr/bin/env node
 import { requireEnv, env } from "./env.mjs";
-import { claimNextQueued, setStatus, saveMatrix, savePersona, saveRun } from "./db.mjs";
+import { claimNextQueued, setStatus, saveMatrix, savePersona, saveRun, saveProductContext } from "./db.mjs";
 import { designMatrix } from "./matrix-designer.mjs";
 import { generatePersona } from "./persona-generator.mjs";
 import { dispatchCampaign } from "./dispatcher.mjs";
+import { buildProductContext } from "./product-context.mjs";
 
 requireEnv();
 
 const ONCE = process.argv.includes("--once");
 
 async function processCampaign(campaign) {
-  const { id: campaignId, url, description } = campaign;
+  const {
+    id: campaignId,
+    url,
+    docs_url: docsUrl,
+    description,
+    environment,
+    execution_mode: executionMode
+  } = campaign;
   console.log(`[orchestrator] ▶ campaign ${campaignId}`);
 
   // 1. Matrix
   await setStatus(campaignId, "designing");
-  const { rows, columns } = await designMatrix({ url, description });
+  const productContext = await buildProductContext({ url, docsUrl });
+  await saveProductContext(campaignId, productContext);
+  const { rows, columns } = await designMatrix({
+    url,
+    docsUrl,
+    description,
+    environment,
+    productContext
+  });
   await saveMatrix(campaignId, rows, columns);
   console.log(`[orchestrator]   matrix: ${rows.length} rows × ${columns.length} cols`);
 
@@ -24,7 +40,7 @@ async function processCampaign(campaign) {
   const personasByRowId = {};
   for (const row of rows) {
     try {
-      const persona = await generatePersona({ url, description, row });
+      const persona = await generatePersona({ url, description, row, productContext });
       const personaId = await savePersona(campaignId, row, persona);
       personasByRowId[row.id] = { ...persona, db_id: personaId };
       console.log(`[orchestrator]   persona: ${persona.name} (${row.label})`);
@@ -42,6 +58,9 @@ async function processCampaign(campaign) {
   await dispatchCampaign({
     url,
     description,
+    environment,
+    productContext,
+    executionMode,
     rows,
     columns,
     personasByRowId,

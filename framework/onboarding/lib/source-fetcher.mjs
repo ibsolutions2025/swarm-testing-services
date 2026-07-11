@@ -97,7 +97,14 @@ function parseGithubRepo(url) {
   return { owner: m[1], repo: m[2] };
 }
 
-function pickGithubToken() {
+function pickGithubToken(owner) {
+  const allowedOwners = new Set(
+    String(process.env.STS_GITHUB_TOKEN_ALLOWED_OWNERS || "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean)
+  );
+  if (!owner || !allowedOwners.has(String(owner).toLowerCase())) return "";
   // Prefer the explicit RW PAT from secrets/github.env; fall back to
   // generic env names if the operator set them differently. The Cowork
   // harness sometimes pre-populates GH_TOKEN with a sandbox-only token
@@ -113,30 +120,28 @@ function pickGithubToken() {
 async function fetchGithubTree(owner, repo, branch = "main") {
   const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
   const headers = { "User-Agent": "STS-OnboardingEngine/0.1", Accept: "application/vnd.github+json" };
-  const token = pickGithubToken();
+  const token = pickGithubToken(owner);
   if (token) headers.Authorization = `Bearer ${token}`;
-  const r = await fetch(url, { headers });
+  const r = await fetchJson(url, { headers, maxBytes: 5_000_000 });
   if (!r.ok) {
     if (r.status === 404 && branch === "main") {
       return await fetchGithubTree(owner, repo, "master");
     }
-    return { ok: false, error: `GitHub tree ${r.status}` };
+    return { ok: false, error: `GitHub tree ${r.status}: ${r.error || "request failed"}` };
   }
-  const json = await r.json();
-  return { ok: true, branch, tree: json.tree || [] };
+  return { ok: true, branch, tree: r.json.tree || [] };
 }
 
 async function fetchGithubRaw(owner, repo, branch, path) {
   // Private repos require auth headers even on raw.githubusercontent.com;
   // pass the same token here.
   const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
-  const token = pickGithubToken();
+  const token = pickGithubToken(owner);
   const headers = { "User-Agent": "STS-OnboardingEngine/0.1" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const r = await fetch(url, { headers });
-  if (!r.ok) return { ok: false, error: `raw ${r.status} for ${path}` };
-  const body = await r.text();
-  return { ok: true, content: body };
+  const r = await fetchPage(url, { headers, maxBytes: 2_000_000 });
+  if (!r.ok) return { ok: false, error: `raw ${r.status} for ${path}: ${r.error || "request failed"}` };
+  return { ok: true, content: r.body };
 }
 
 function pickBestSolFile(tree, contractName) {

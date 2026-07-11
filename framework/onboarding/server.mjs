@@ -31,9 +31,11 @@
  */
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { readFile, readdir, stat, mkdir, writeFile, rm, cp } from "node:fs/promises";
+import { timingSafeEqual } from "node:crypto";
+import { readFile, readdir, stat, lstat, mkdir, writeFile, rm, cp } from "node:fs/promises";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertPublicTargetUrl, TargetUrlError } from "../../lib/target-url.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..", "..");
@@ -49,6 +51,11 @@ if (!TOKEN) {
 function unauthorized(res) {
   res.writeHead(401, { "content-type": "application/json" });
   res.end(JSON.stringify({ error: "unauthorized" }));
+}
+
+function forbidden(res, msg) {
+  res.writeHead(403, { "content-type": "application/json" });
+  res.end(JSON.stringify({ error: msg }));
 }
 
 function badRequest(res, msg) {
@@ -69,14 +76,28 @@ function serverError(res, msg) {
 function checkAuth(req) {
   const raw = String(req.headers["authorization"] || "").trim();
   const m = raw.match(/^Bearer\s+(.+)$/i);
-  return Boolean(m && m[1].trim() === TOKEN);
+  if (!m) return false;
+  const candidate = Buffer.from(m[1].trim());
+  const expected = Buffer.from(TOKEN);
+  return candidate.length === expected.length && timingSafeEqual(candidate, expected);
 }
 
-async function readBody(req) {
+async function readBody(req, maxBytes = 1_000_000) {
   return new Promise((resolveBody, rejectBody) => {
     let chunks = [];
-    req.on("data", (c) => chunks.push(c));
+    let size = 0;
+    let overflow = false;
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > maxBytes) {
+        overflow = true;
+        chunks = [];
+        return;
+      }
+      if (!overflow) chunks.push(c);
+    });
     req.on("end", () => {
+      if (overflow) return rejectBody(new Error("request body too large"));
       try { resolveBody(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")); }
       catch (e) { rejectBody(new Error("invalid JSON body")); }
     });
@@ -103,10 +124,12 @@ async function handleStart(req, res) {
   const safeRunId = sanitizeRunId(String(runId));
   if (!safeRunId) return badRequest(res, "invalid runId (allowed: [A-Za-z0-9._-]+)");
   try {
-    const u = new URL(String(url));
-    if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("bad protocol");
-  } catch {
-    return badRequest(res, "url must be http(s)");
+    await assertPublicTargetUrl(String(url));
+  } catch (error) {
+    const message = error instanceof TargetUrlError
+      ? error.message
+      : "target URL could not be validated";
+    return badRequest(res, message);
   }
 
   const enginePath = resolve(__dirname, "engine.mjs");
@@ -287,6 +310,9 @@ function safeRelPath(p) {
 }
 
 async function handleCutover(req, res) {
+  if (process.env.STS_ALLOW_CODE_CUTOVER !== "true") {
+    return forbidden(res, "generated-code cutover is disabled");
+  }
   let body;
   try { body = await readBody(req); } catch (e) { return badRequest(res, e.message); }
   const { runId, sourceSlug, targetLibDir, targetClientsDir, files } = body || {};
@@ -322,15 +348,31 @@ async function handleCutover(req, res) {
 
   // Build override key set (relpath → content)
   const overrideMap = new Map();
+  let overrideBytes = 0;
   for (const [k, v] of Object.entries(files)) {
-    if (typeof v !== "string") continue;
-    overrideMap.set(String(k).replace(/\\/g, "/"), v);
+    if (typeof v !== "string") return badRequest(res, "file content must be text: " + k);
+    const normalizedKey = String(k).replace(/\\/g, "/");
+    const prefix = normalizedKey.startsWith(libRel + "/")
+      ? libRel + "/"
+      : normalizedKey.startsWith(clientsRel + "/")
+        ? clientsRel + "/"
+        : null;
+    if (!prefix) return badRequest(res, "file is outside the approved output directories: " + k);
+    const filename = normalizedKey.slice(prefix.length);
+    if (!/^[a-zA-Z0-9._-]+$/.test(filename)) {
+      return badRequest(res, "invalid output filename: " + k);
+    }
+    const bytes = Buffer.byteLength(v, "utf8");
+    if (bytes > 1_000_000) return badRequest(res, "output file exceeds 1 MB: " + k);
+    overrideBytes += bytes;
+    if (overrideBytes > 5_000_000) return badRequest(res, "output bundle exceeds 5 MB");
+    overrideMap.set(normalizedKey, v);
   }
 
   // Copy lib files: for each file in source lib, write override or original
   const libWritten = [];
   for (const f of await readdir(sourceLib)) {
-    const stat1 = await stat(join(sourceLib, f));
+    const stat1 = await lstat(join(sourceLib, f));
     if (!stat1.isFile()) continue;
     const targetRelKey = `${libRel}/${f}`;
     const targetPath = join(targetLib, f);
@@ -347,7 +389,7 @@ async function handleCutover(req, res) {
   const clientsWritten = [];
   if (sourceClientsOk) {
     for (const f of await readdir(sourceClients)) {
-      const stat2 = await stat(join(sourceClients, f));
+      const stat2 = await lstat(join(sourceClients, f));
       if (!stat2.isFile()) continue;
       const targetRelKey = `${clientsRel}/${f}`;
       const targetPath = join(targetClients, f);

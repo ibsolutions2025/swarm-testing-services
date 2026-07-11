@@ -5,9 +5,9 @@ import crypto from "node:crypto";
  * /api/orchestrator/webhook with `x-swarm-signature: sha256=<hex>`, where
  * <hex> is HMAC-SHA256(secret, raw_body).
  */
-export function sign(payload: string, secret: string): string {
+export function sign(payload: string, secret: string, timestamp?: string): string {
   const h = crypto.createHmac("sha256", secret);
-  h.update(payload);
+  h.update(timestamp ? `${timestamp}.${payload}` : payload);
   return "sha256=" + h.digest("hex");
 }
 
@@ -17,9 +17,10 @@ export function sign(payload: string, secret: string): string {
 export function verify(
   payload: string,
   signature: string,
-  secret: string
+  secret: string,
+  timestamp?: string
 ): boolean {
-  const expected = sign(payload, secret);
+  const expected = sign(payload, secret, timestamp);
   const a = Buffer.from(expected);
   const b = Buffer.from(signature);
   if (a.length !== b.length) return false;

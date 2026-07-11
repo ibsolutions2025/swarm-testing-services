@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 type Mode = "signin" | "signup";
 
@@ -15,14 +15,16 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
-  const next = params?.get("next") ?? "/dashboard";
+  const requestedNext = params?.get("next") ?? "/dashboard";
+  const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//")
+    ? requestedNext
+    : "/dashboard";
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [status, setStatus] = useState<"idle" | "submitting" | "error">(
+  const [status, setStatus] = useState<"idle" | "submitting" | "confirmation" | "error">(
     "idle"
   );
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +43,15 @@ function LoginForm() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "Something went wrong.");
+      if (mode === "signup" && data?.requiresConfirmation) {
+        setStatus("confirmation");
+        return;
+      }
       // Hard nav so the server component picks up the fresh cookie.
       window.location.href = next;
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus("error");
-      setError(err?.message ?? "Something went wrong.");
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     }
   }
 
@@ -100,7 +106,7 @@ function LoginForm() {
           </h1>
           <p className="mt-2 text-sm text-[var(--muted)]">
             {mode === "signup"
-              ? "Sign up with email and password — no confirmation email, no magic link."
+              ? "Create an account with your email and a 12-character password. We will send a verification link before you can sign in."
               : "Sign in with your email and password."}
           </p>
 
@@ -131,11 +137,11 @@ function LoginForm() {
                   mode === "signup" ? "new-password" : "current-password"
                 }
                 required
-                minLength={8}
+                minLength={mode === "signup" ? 12 : 8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={
-                  mode === "signup" ? "At least 8 characters" : "Your password"
+                  mode === "signup" ? "At least 12 characters" : "Your password"
                 }
                 className="w-full rounded-md border border-[var(--border)] bg-transparent px-4 py-3 outline-none focus:border-accent"
               />
@@ -161,6 +167,12 @@ function LoginForm() {
             </p>
           )}
 
+          {status === "confirmation" && (
+            <p className="mt-6 rounded-md border border-emerald-500/40 p-4 text-sm text-emerald-200">
+              Check your email for the verification link. If an account already exists, use sign in or reset its password.
+            </p>
+          )}
+
           {mode === "signin" && (
             <p className="mt-6 text-center text-sm text-[var(--muted)]">
               New here?{" "}
@@ -179,7 +191,7 @@ function LoginForm() {
           )}
 
           <p className="mt-8 text-center text-xs text-[var(--muted)]">
-            By signing in you agree to our Terms & Privacy.
+            By continuing you agree to our <Link href="/terms" className="text-accent hover:underline">Terms</Link> and <Link href="/privacy" className="text-accent hover:underline">Privacy Notice</Link>.
           </p>
         </div>
       </div>

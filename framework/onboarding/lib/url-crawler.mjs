@@ -13,6 +13,8 @@
  * step that uses this helper is responsible for failure handling.
  */
 
+import { assertPublicTargetUrl } from "../../../lib/target-url.mjs";
+
 const DEFAULT_HEADERS = {
   // Identify ourselves so target servers can grant well-known access if
   // they're locked behind UA-blocking middleware.
@@ -23,22 +25,42 @@ const DEFAULT_HEADERS = {
 export async function fetchPage(url, opts = {}) {
   const t0 = Date.now();
   try {
-    const r = await fetch(url, {
-      method: "GET",
-      redirect: "follow",
-      headers: { ...DEFAULT_HEADERS, ...(opts.headers || {}) },
-    });
-    const contentType = r.headers.get("content-type") || "";
-    const body = await r.text();
-    return {
-      ok: r.ok,
-      status: r.status,
-      finalUrl: r.url,
-      contentType,
-      body,
-      bodyLength: body.length,
-      elapsedMs: Date.now() - t0,
-    };
+    const timeoutMs = boundedNumber(opts.timeoutMs ?? process.env.STS_FETCH_TIMEOUT_MS, 30_000, 1_000, 120_000);
+    const maxBytes = boundedNumber(opts.maxBytes ?? process.env.STS_MAX_FETCH_BYTES, 2_000_000, 65_536, 5_000_000);
+    const maxRedirects = boundedNumber(opts.maxRedirects, 5, 0, 10);
+    let currentUrl = String(url);
+
+    for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
+      const safe = await assertPublicTargetUrl(currentUrl);
+      const r = await fetch(safe.url, {
+        method: "GET",
+        redirect: "manual",
+        headers: { ...DEFAULT_HEADERS, ...(opts.headers || {}) },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (r.status >= 300 && r.status < 400) {
+        const location = r.headers.get("location");
+        if (!location) throw new Error(`redirect ${r.status} did not include a location header`);
+        if (redirectCount === maxRedirects) throw new Error(`redirect limit exceeded (${maxRedirects})`);
+        currentUrl = new URL(location, safe.url).toString();
+        continue;
+      }
+
+      const contentType = r.headers.get("content-type") || "";
+      const body = await readBodyLimited(r, maxBytes);
+      return {
+        ok: r.ok,
+        status: r.status,
+        finalUrl: safe.url.toString(),
+        contentType,
+        body,
+        bodyLength: Buffer.byteLength(body, "utf8"),
+        elapsedMs: Date.now() - t0,
+      };
+    }
+
+    throw new Error("redirect loop ended unexpectedly");
   } catch (e) {
     return {
       ok: false,
@@ -47,10 +69,42 @@ export async function fetchPage(url, opts = {}) {
       contentType: "",
       body: "",
       bodyLength: 0,
-      error: e.message,
+      error: e instanceof Error ? e.message : String(e),
+      errorCode: typeof e === "object" && e && "code" in e ? String(e.code) : "fetch_failed",
       elapsedMs: Date.now() - t0,
     };
   }
+}
+
+function boundedNumber(value, fallback, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+async function readBodyLimited(response, maxBytes) {
+  const declared = Number(response.headers.get("content-length") || 0);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Error(`response exceeds ${maxBytes} byte limit`);
+  }
+  if (!response.body) return "";
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytesRead = 0;
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytesRead += value.byteLength;
+    if (bytesRead > maxBytes) {
+      await reader.cancel("response size limit exceeded");
+      throw new Error(`response exceeds ${maxBytes} byte limit`);
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  text += decoder.decode();
+  return text;
 }
 
 export async function fetchJson(url, opts = {}) {

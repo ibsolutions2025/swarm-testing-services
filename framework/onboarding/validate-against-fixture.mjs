@@ -98,12 +98,7 @@ function extractAbiSigCounts(src) {
     let body = src.slice(m.index + m[0].length - 1, i).replace(/\] as const;/g, "];");
     let abi;
     try { abi = JSON.parse(body); }
-    catch (e) {
-      try {
-        // eslint-disable-next-line no-new-func
-        abi = Function(`"use strict"; return (${body});`)();
-      } catch { abi = []; }
-    }
+    catch { abi = []; }
     if (Array.isArray(abi)) {
       out[name] = {
         functions: abi.filter((e) => e.type === "function").map((e) => `${e.name}(${(e.inputs||[]).map((i) => i.type).join(",")})`).sort(),

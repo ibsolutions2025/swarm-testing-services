@@ -1,5 +1,31 @@
 # Swarm Testing Services — STATUS
 
+## Current production-readiness state — 2026-07-11
+
+**Review branch:** `fix/production-readiness-2026-07-11` (not merged or deployed)
+
+This branch consolidates STS around the intended URL + documentation intake flow and makes the current capability boundary explicit: source-backed discovery, matrix design, personas, rubric planning, and low-confidence simulation exist; a general isolated browser-worker fleet with evidence does not yet exist and remains a GA blocker.
+
+Implemented on the branch:
+
+- account-takeover signup path removed; email confirmation and a 12-character password floor restored;
+- SSRF-safe target validation, redirect revalidation, fetch time/size limits, production-target opt-in, and explicit testing authorization;
+- signed, timestamped, replay-resistant, status-aware webhooks;
+- authenticated result APIs using user-session RLS rather than public service-role reads;
+- atomic campaign intake quotas and atomic greenlight ledger finalization;
+- generated-code cutover disabled by default; dynamic `Function` execution replaced by a tested restricted predicate DSL;
+- dry-run override fixed, shared GitHub token use allowlisted, secret fallbacks removed, and a no-value secret scanner added;
+- generic product/docs context ingestion, richer risk-based matrices, structured rubric/evidence fields, and fail-closed simulated results;
+- truthful public landing, Docs, Resources, Terms, and Privacy pages plus durable local architecture/security/rubric/intake/readiness docs.
+
+Verification: secret scan + 16 tests pass; `tsc --noEmit` passes; optimized production build passes; `/`, `/docs`, `/resources`, `/privacy`, and `/terms` return 200 with security headers; anonymous result and intake endpoints return 401.
+
+**Not production ready / not safe to merge yet:** rotate all exposed provider and Alchemy credentials, purge Git history, apply and runtime-test migration `0011`, build isolated browser workers and evidence capture, implement organization-level tenancy and durable queue leases, finish quota/spend/retention/privacy controls, upgrade to a supported Next.js major, and complete a controlled pilot. The production deployment remains on the prior code until review and merge.
+
+The shared Drive workspace and live Helm product entry were prepared but could not be written because connected-service mutations were rejected after the Codex usage window was exhausted. The local tracker is at `.artifacts/sts-tracker/outputs/Swarm-Testing-Services-Production-Readiness-Tracker.xlsx`.
+
+---
+
 **Live URL:** https://swarm-testing-services.vercel.app
 **Supabase project ref:** ldxcenmhazelrnrlxuwq
 **Credentials:** `/sessions/ecstatic-tender-fermat/mnt/.openclaw/swarm-testing-credentials.md` (outside repo)

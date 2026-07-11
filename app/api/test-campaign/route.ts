@@ -1,68 +1,108 @@
+import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 import { sign } from "@/lib/hmac";
+import { assertPublicTargetUrl, TargetUrlError } from "@/lib/target-url.mjs";
 
-/**
- * POST /api/test-campaign
- * Body: { url, description }
- *
- * 1. Auth — require a Supabase session cookie.
- * 2. Validate — URL must parse, description non-empty.
- * 3. Persist — insert a row in `campaigns` with status='queued'.
- * 4. Dispatch — fire-and-forget POST to the orchestrator webhook so the
- *    matrix designer + persona generator + dispatcher can start.
- * 5. Graceful degradation — if the `campaigns` table isn't provisioned
- *    yet, return a 202 with `table_missing: true`.
- */
+export const runtime = "nodejs";
+
+type CampaignInput = {
+  url?: unknown;
+  docs_url?: unknown;
+  description?: unknown;
+  environment?: unknown;
+  authorization_confirmed?: unknown;
+};
+
 export async function POST(req: NextRequest) {
-  let body: any;
+  const contentLength = Number(req.headers.get("content-length") || 0);
+  if (Number.isFinite(contentLength) && contentLength > 16_384) {
+    return NextResponse.json({ error: "request body too large" }, { status: 413 });
+  }
+
+  const supabase = createServerClient();
+  const {
+    data: { user },
+    error: authError
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json({ error: "not authenticated" }, { status: 401 });
+  }
+
+  const { data: withinQuota, error: quotaError } = await supabase.rpc(
+    "consume_campaign_quota",
+    { max_requests: 3, window_seconds: 600 }
+  );
+  if (quotaError) {
+    return NextResponse.json(
+      { error: "Campaign intake is temporarily unavailable." },
+      { status: 503 }
+    );
+  }
+  if (!withinQuota) {
+    return NextResponse.json(
+      { error: "Campaign limit reached. Try again after the current 10-minute window." },
+      { status: 429, headers: { "retry-after": "600" } }
+    );
+  }
+
+  let body: CampaignInput;
   try {
-    body = await req.json();
+    const rawBody = await req.text();
+    if (Buffer.byteLength(rawBody, "utf8") > 16_384) {
+      return NextResponse.json({ error: "request body too large" }, { status: 413 });
+    }
+    body = JSON.parse(rawBody) as CampaignInput;
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
 
-  const { url, description } = body ?? {};
-
-  if (!url || typeof url !== "string") {
-    return NextResponse.json({ error: "url is required" }, { status: 400 });
+  if (body.authorization_confirmed !== true) {
+    return NextResponse.json(
+      { error: "Confirm that you are authorized to test this product." },
+      { status: 400 }
+    );
   }
+
+  let productUrl: string;
+  let docsUrl: string | null = null;
   try {
-    // Reject non-http(s) or malformed URLs early.
-    const parsed = new URL(url);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      throw new Error("bad protocol");
+    productUrl = (await assertPublicTargetUrl(String(body.url || ""))).url.toString();
+    if (typeof body.docs_url === "string" && body.docs_url.trim()) {
+      docsUrl = (await assertPublicTargetUrl(body.docs_url)).url.toString();
     }
-  } catch {
+  } catch (error) {
+    const message = error instanceof TargetUrlError
+      ? error.message
+      : "The product or documentation URL could not be validated.";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+
+  const description = typeof body.description === "string" ? body.description.trim() : "";
+  if (description.length < 20 || description.length > 5_000) {
     return NextResponse.json(
-      { error: "url must be a valid http(s) URL" },
+      { error: "Test scope must be between 20 and 5,000 characters." },
       { status: 400 }
     );
   }
 
-  if (!description || typeof description !== "string" || description.trim().length < 20) {
+  const environment = body.environment === "production" ? "production" : "staging";
+  if (environment === "production" && process.env.STS_ALLOW_PRODUCTION_TARGETS !== "true") {
     return NextResponse.json(
-      { error: "description must be at least 20 characters" },
-      { status: 400 }
+      { error: "Production targets require operator approval. Use a staging target for beta campaigns." },
+      { status: 403 }
     );
-  }
-
-  const supabase = createServerClient();
-
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "not authenticated" }, { status: 401 });
   }
 
   const { data, error } = await supabase
     .from("campaigns")
     .insert({
       user_id: user.id,
-      url,
+      url: productUrl,
+      docs_url: docsUrl,
       description,
+      environment,
+      authorization_confirmed_at: new Date().toISOString(),
       status: "queued"
     })
     .select("id, status")
@@ -71,42 +111,42 @@ export async function POST(req: NextRequest) {
   if (error) {
     if (error.code === "PGRST205" || /does not exist/i.test(error.message)) {
       return NextResponse.json(
-        {
-          campaign_id: "stub-" + Date.now(),
-          table_missing: true,
-          note:
-            "campaigns table not yet provisioned; run supabase/migrations/0001_init.sql to enable persistence."
-        },
-        { status: 202 }
+        { error: "The campaign data model has not been provisioned." },
+        { status: 503 }
       );
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Unable to create the campaign." }, { status: 500 });
   }
 
-  // Fire-and-forget webhook to the orchestrator. Kept inside a try/catch so
-  // a missing orchestrator in dev doesn't block campaign creation — the
-  // campaign stays queued and a cron-style orchestrator can pick it up.
   const orchestratorUrl = process.env.ORCHESTRATOR_WEBHOOK_URL;
   const orchestratorSecret = process.env.ORCHESTRATOR_WEBHOOK_SECRET;
+  let dispatchStatus: "not_configured" | "accepted" | "queued" = "not_configured";
 
   if (orchestratorUrl && orchestratorSecret) {
-    const payload = JSON.stringify({ campaign_id: data.id, kick: "new" });
-    const signature = sign(payload, orchestratorSecret);
-    // Intentionally not awaited — fire and forget.
-    fetch(orchestratorUrl, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-swarm-signature": signature
-      },
-      body: payload
-    }).catch(() => {
-      /* orchestrator offline → campaign stays queued; poller handles it */
-    });
+    const eventId = crypto.randomUUID();
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const payload = JSON.stringify({ campaign_id: data.id, event_id: eventId, kick: "new" });
+    const signature = sign(payload, orchestratorSecret, timestamp);
+    try {
+      const response = await fetch(orchestratorUrl, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-swarm-event-id": eventId,
+          "x-swarm-timestamp": timestamp,
+          "x-swarm-signature": signature
+        },
+        body: payload,
+        signal: AbortSignal.timeout(10_000)
+      });
+      dispatchStatus = response.ok ? "accepted" : "queued";
+    } catch {
+      dispatchStatus = "queued";
+    }
   }
 
   return NextResponse.json(
-    { campaign_id: data.id, status: data.status },
-    { status: 201 }
+    { campaign_id: data.id, status: data.status, dispatch_status: dispatchStatus },
+    { status: 201, headers: { "cache-control": "no-store" } }
   );
 }

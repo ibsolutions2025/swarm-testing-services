@@ -26,7 +26,8 @@ import { baseSepolia } from 'viem/chains';
 // ============================================================
 const STS_SUPABASE_URL    = process.env.STS_SUPABASE_URL    || 'https://ldxcenmhazelrnrlxuwq.supabase.co';
 const STS_SUPABASE_KEY    = process.env.STS_SUPABASE_KEY;  // service_role key — required
-const ALCHEMY_RPC         = process.env.ALCHEMY_RPC         || 'https://base-sepolia.g.alchemy.com/v2/xlgHg3R-suQ_fJKc3vN39';
+const ALCHEMY_RPC         = (process.env.ALCHEMY_RPC || '').trim();
+if (!ALCHEMY_RPC) throw new Error('ALCHEMY_RPC is required');
 const PROJECT_ID          = 'awp';
 const DRY_RUN             = process.argv.includes('--dry-run');
 const SINCE_IDX           = process.argv.indexOf('--since');

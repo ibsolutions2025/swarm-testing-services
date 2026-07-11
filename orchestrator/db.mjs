@@ -30,7 +30,7 @@ export async function claimNextQueued() {
     .update({ status: "designing" })
     .eq("id", queued.id)
     .eq("status", "queued") // only if still queued
-    .select("id, url, description")
+    .select("id, url, docs_url, description, environment, execution_mode")
     .maybeSingle();
 
   if (error) {
@@ -46,6 +46,15 @@ export async function setStatus(campaignId, status, error = null) {
     .from("campaigns")
     .update({ status, error })
     .eq("id", campaignId);
+}
+
+export async function saveProductContext(campaignId, productContext) {
+  const db = supabase();
+  const { error } = await db
+    .from("campaigns")
+    .update({ product_context: productContext })
+    .eq("id", campaignId);
+  if (error) throw error;
 }
 
 export async function saveMatrix(campaignId, rows, columns) {
@@ -92,7 +101,14 @@ export async function saveRun(campaignId, row, col, personaId, runResult) {
         outcome: runResult.outcome,
         transcript: runResult.transcript ?? [],
         quote: runResult.quote ?? null,
-        duration_ms: runResult.duration_ms ?? 0
+        duration_ms: runResult.duration_ms ?? 0,
+        executor_mode: runResult.executor_mode ?? "simulated",
+        confidence: runResult.confidence ?? null,
+        failure_category: runResult.failure_category ?? null,
+        rubric_scores: runResult.rubric_scores ?? {},
+        evidence: runResult.evidence ?? [],
+        started_at: runResult.started_at ?? null,
+        completed_at: runResult.completed_at ?? new Date().toISOString()
       },
       { onConflict: "campaign_id,matrix_row_id,matrix_column_id" }
     );

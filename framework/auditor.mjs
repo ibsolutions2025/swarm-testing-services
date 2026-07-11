@@ -51,8 +51,8 @@ import {
 // ─────────────────────────────────────────────────────────────────
 // Config
 // ─────────────────────────────────────────────────────────────────
-const ALCHEMY_RPC = process.env.ALCHEMY_RPC
-  || 'https://base-sepolia.g.alchemy.com/v2/xlgHg3R-suQ_fJKc3vN39';
+const ALCHEMY_RPC = (process.env.ALCHEMY_RPC || '').trim();
+if (!ALCHEMY_RPC) throw new Error('ALCHEMY_RPC is required');
 const JOBNFT_V15 = process.env.AWP_JOBNFT  || CONTRACT_ADDRESSES.JobNFT;
 const REVIEWGATE = process.env.AWP_RG      || CONTRACT_ADDRESSES.ReviewGate;
 const STS_URL = process.env.STS_SUPABASE_URL || 'https://ldxcenmhazelrnrlxuwq.supabase.co';

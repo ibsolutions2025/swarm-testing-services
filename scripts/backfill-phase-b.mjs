@@ -20,8 +20,8 @@ import { Indexer } from '../framework/indexer.mjs';
 import { verifyJob } from '../framework/verifier.mjs';
 import { Aggregator } from '../framework/aggregator.mjs';
 
-const ALCHEMY_RPC = process.env.ALCHEMY_RPC
-  || 'https://base-sepolia.g.alchemy.com/v2/xlgHg3R-suQ_fJKc3vN39';
+const ALCHEMY_RPC = (process.env.ALCHEMY_RPC || '').trim();
+if (!ALCHEMY_RPC) throw new Error('ALCHEMY_RPC is required');
 const JOBNFT_V15 = process.env.AWP_JOBNFT || '';
 const REVIEWGATE_V4 = process.env.AWP_RG || '';
 const DEPLOY_BLOCK = BigInt(process.env.AWP_DEPLOY_BLOCK || '0');

@@ -68,6 +68,7 @@ async function callOpenAICompat({ baseUrl, apiKey, system, user, maxTokens, temp
       temperature,
       stream: false,
     }),
+    signal: AbortSignal.timeout(120_000),
   });
   if (!r.ok) {
     const txt = await r.text().catch(() => "");

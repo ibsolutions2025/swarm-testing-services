@@ -4,11 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Swarm Testing Services",
   description:
-    "Stress-test your product with autonomous agent swarms. Zero bias, full coverage, human-readable results.",
+    "Turn a product URL and documentation into a risk-based, reviewable test plan. Now in private beta.",
   openGraph: {
     title: "Swarm Testing Services",
     description:
-      "Stress-test your product with autonomous agent swarms.",
+      "Source-backed product discovery and swarm test planning, now in private beta.",
     type: "website"
   }
 };

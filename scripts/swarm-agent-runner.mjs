@@ -237,7 +237,7 @@ function buildPrompt(taskType, context) {
 // ============================================================
 // Fallbacks (only used when both JSON parse attempts fail).
 // ============================================================
-function fallbackResult(taskType, persona, context) {
+function failClosedResult(taskType, persona, context) {
   if (taskType === "create") {
     return {
       title: "New task — consolidated",
@@ -256,11 +256,11 @@ function fallbackResult(taskType, persona, context) {
   }
   if (taskType === "review") {
     return {
-      decision: "approve",
-      score: 70,
-      reason: "Meets the requirement.",
+      decision: "reject",
+      score: 0,
+      reason: "No valid model result was produced.",
       // Back-compat alias for callers that read .comment
-      comment: "Meets the requirement.",
+      comment: "No valid model result was produced.",
       fell_back: true
     };
   }
@@ -509,16 +509,17 @@ export async function runAgent({
     });
   }
 
-  // Fallback path.
-  const fb = fallbackResult(taskType, persona, context || {});
+  // Fail closed. Fabricated create/submit/review output can become an
+  // on-chain action, so provider or schema failure must require a retry or
+  // manual review rather than synthesizing a plausible success.
   const ms = Date.now() - t0;
-  console.log(
+  const detail = lastErr ? lastErr.message?.slice(0, 500) : "model returned invalid output";
+  console.error(
     `[agent-runner] persona=${persona} task=${taskType} provider=${provider} ` +
       `model=${resolvedModel} turns=${turns} tokens=${tokensIn}/${tokensOut} ` +
-      `ms=${ms} outcome=fallback` +
-      (lastErr ? ` err=${lastErr.message?.slice(0, 500)}` : "")
+      `ms=${ms} outcome=blocked err=${detail}`
   );
-  return fb;
+  throw new Error(`[agent-runner] no verified ${taskType} result; refusing synthetic fallback: ${detail}`);
 }
 
 // Allow running as CLI for smoke tests: node swarm-agent-runner.mjs <persona> <task> <json-context>

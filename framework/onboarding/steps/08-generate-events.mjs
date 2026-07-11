@@ -238,12 +238,7 @@ export async function run(ctx) {
       try {
         out[name] = JSON.parse(body);
       } catch (e) {
-        try {
-          // eslint-disable-next-line no-new-func
-          out[name] = Function(`"use strict"; return (${body});`)();
-        } catch (e2) {
-          out[name] = { error: e2.message };
-        }
+        out[name] = { error: `ABI export must be strict JSON: ${e.message}` };
       }
     }
     return out;

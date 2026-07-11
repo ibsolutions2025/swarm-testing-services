@@ -1,18 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase-admin";
+import { createServerClient } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type"
-};
+const privateHeaders = { "Cache-Control": "private, no-store" };
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 200, headers: corsHeaders });
-}
+const lifecycleColumns = [
+  "id",
+  "project_id",
+  "run_id",
+  "config_key",
+  "scenario_key",
+  "status",
+  "steps",
+  "wallets",
+  "agent_wallets",
+  "job_id",
+  "onchain_job_id",
+  "started_at",
+  "completed_at",
+  "duration_ms",
+  "error_message",
+  "current_step",
+  "step_audits",
+  "cell_audit",
+  "config_validated",
+  "verification_failures",
+  "intended_config",
+  "intended_scenario",
+  "created_at",
+  "updated_at"
+].join(",");
 
 /**
  * GET /api/test-results/lifecycle?project=<slug>
@@ -26,16 +45,35 @@ export async function OPTIONS() {
  */
 export async function GET(request: NextRequest) {
   try {
+    const supabase = createServerClient();
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401, headers: privateHeaders }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get("project") || "awp";
+    if (!/^[a-z0-9-]{1,64}$/.test(projectId)) {
+      return NextResponse.json(
+        { error: "Invalid project identifier" },
+        { status: 400, headers: privateHeaders }
+      );
+    }
     const configKey = searchParams.get("config_key");
     const scenarioKey = searchParams.get("scenario_key");
     const status = searchParams.get("status");
-    const limit = parseInt(searchParams.get("limit") || "5000", 10);
+    const requestedLimit = Number.parseInt(searchParams.get("limit") || "500", 10);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(1000, requestedLimit))
+      : 500;
     const since = searchParams.get("since");
     const onchainJobId = searchParams.get("onchain_job_id");
-
-    const admin = createAdminClient();
 
     // Build the base query each pass — Supabase REST silently caps single
     // .select() responses at 1000 rows regardless of .limit(). We page
@@ -43,9 +81,9 @@ export async function GET(request: NextRequest) {
     // or the source returns fewer rows than the page size (end of data).
     const PAGE_SIZE = 1000;
     const buildQuery = () => {
-      let q = admin
+      let q = supabase
         .from("lifecycle_results")
-        .select("*")
+        .select(lifecycleColumns)
         .eq("project_id", projectId)
         .order("started_at", { ascending: false });
       if (configKey) q = q.eq("config_key", configKey);
@@ -86,7 +124,7 @@ export async function GET(request: NextRequest) {
       const { data, error: pageError } = await buildQuery().range(offset, pageEnd);
       if (pageError) { error = pageError; break; }
       if (!data || data.length === 0) break;
-      results.push(...(data as LifecycleRow[]));
+      results.push(...(data as unknown as LifecycleRow[]));
       if (data.length < PAGE_SIZE) break; // last page
       offset += data.length;
     }
@@ -109,12 +147,12 @@ export async function GET(request: NextRequest) {
             },
             table_missing: true
           },
-          { headers: corsHeaders }
+          { headers: privateHeaders }
         );
       }
       return NextResponse.json(
         { error: error.message },
-        { status: 500, headers: corsHeaders }
+        { status: 500, headers: privateHeaders }
       );
     }
 
@@ -217,12 +255,13 @@ export async function GET(request: NextRequest) {
           }
         }
       },
-      { headers: corsHeaders }
+      { headers: privateHeaders }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json(
-      { error: err?.message || "Internal server error" },
-      { status: 500, headers: corsHeaders }
+      { error: message },
+      { status: 500, headers: privateHeaders }
     );
   }
 }

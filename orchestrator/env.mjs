@@ -24,8 +24,8 @@ export const env = {
   MODEL_PERSONA: process.env.MODEL_PERSONA || "moonshotai/kimi-k2-instruct",
   MODEL_RUN: process.env.MODEL_RUN || "moonshotai/kimi-k2-instruct",
   POLL_INTERVAL_MS: Number(process.env.POLL_INTERVAL_MS || 10_000),
-  MAX_ROWS: Number(process.env.MAX_ROWS || 5),
-  MAX_COLUMNS: Number(process.env.MAX_COLUMNS || 6),
+  MAX_ROWS: Number(process.env.MAX_ROWS || 8),
+  MAX_COLUMNS: Number(process.env.MAX_COLUMNS || 10),
   MAX_CONCURRENT_RUNS: Number(process.env.MAX_CONCURRENT_RUNS || 3)
 };
 

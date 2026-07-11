@@ -92,6 +92,9 @@ export interface CampaignResults {
 
 export interface OrchestratorWebhookPayload {
   campaign_id: string;
+  event_id: string;
+  schema_version?: 1;
+  occurred_at?: string;
   phase:
     | "matrix_designed"
     | "personas_generated"

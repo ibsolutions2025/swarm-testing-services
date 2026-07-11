@@ -24,7 +24,8 @@ export async function chat({ model, system, user, responseFormat = null, maxToke
       ].filter(Boolean),
       max_tokens: maxTokens,
       ...(responseFormat === "json" ? { response_format: { type: "json_object" } } : {})
-    })
+    }),
+    signal: AbortSignal.timeout(120_000)
   });
 
   if (!res.ok) {

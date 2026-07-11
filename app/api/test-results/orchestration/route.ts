@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase-admin";
+import { createServerClient } from "@/lib/supabase-server";
 import type {
   OrchestrationEvent,
   OrchestrationResponse
@@ -8,15 +8,7 @@ import type {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type"
-};
-
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 200, headers: corsHeaders });
-}
+const privateHeaders = { "Cache-Control": "private, no-store" };
 
 /**
  * GET /api/test-results/orchestration?project=awp&since=<ISO>&limit=<N>
@@ -27,8 +19,26 @@ export async function OPTIONS() {
  * of a 500.
  */
 export async function GET(request: NextRequest) {
+  const supabase = createServerClient();
+  const {
+    data: { user },
+    error: authError
+  } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { error: "Authentication required", events: [] },
+      { status: 401, headers: privateHeaders }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("project") || "awp";
+  if (!/^[a-z0-9-]{1,64}$/.test(projectId)) {
+    return NextResponse.json(
+      { error: "Invalid project identifier", events: [] },
+      { status: 400, headers: privateHeaders }
+    );
+  }
   const since = searchParams.get("since");
   const limitRaw = parseInt(searchParams.get("limit") || "100", 10);
   const limit = Number.isFinite(limitRaw)
@@ -36,10 +46,11 @@ export async function GET(request: NextRequest) {
     : 100;
 
   try {
-    const admin = createAdminClient();
-    let query = admin
+    let query = supabase
       .from("orchestration_events")
-      .select("*")
+      .select(
+        "id,project_id,ran_at,cycle_id,source,event_type,persona,job_id,directive,reasoning,tx_hash,meta"
+      )
       .eq("project_id", projectId)
       .order("ran_at", { ascending: false })
       .limit(limit);
@@ -62,22 +73,23 @@ export async function GET(request: NextRequest) {
           events: [],
           table_missing: true
         };
-        return NextResponse.json(body, { headers: corsHeaders });
+        return NextResponse.json(body, { headers: privateHeaders });
       }
       return NextResponse.json(
         { error: msg, events: [] },
-        { status: 500, headers: corsHeaders }
+        { status: 500, headers: privateHeaders }
       );
     }
 
     const body: OrchestrationResponse = {
       events: (data as OrchestrationEvent[]) || []
     };
-    return NextResponse.json(body, { headers: corsHeaders });
-  } catch (err: any) {
+    return NextResponse.json(body, { headers: privateHeaders });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json(
-      { error: err?.message || "Internal server error", events: [] },
-      { status: 500, headers: corsHeaders }
+      { error: message, events: [] },
+      { status: 500, headers: privateHeaders }
     );
   }
 }
