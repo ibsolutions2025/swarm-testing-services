@@ -2,7 +2,7 @@
 
 ## Current production-readiness state — 2026-07-11
 
-**Review branch:** `fix/production-readiness-2026-07-11` (not merged or deployed)
+**Review branch:** `fix/production-readiness-2026-07-11` (not merged or production-deployed; protected Vercel preview is READY)
 
 This branch consolidates STS around the intended URL + documentation intake flow and makes the current capability boundary explicit: source-backed discovery, matrix design, personas, rubric planning, and low-confidence simulation exist; a general isolated browser-worker fleet with evidence does not yet exist and remains a GA blocker.
 
@@ -22,7 +22,7 @@ Verification: secret scan + 16 tests pass; `tsc --noEmit` passes; optimized prod
 
 **Not production ready / not safe to merge yet:** rotate all exposed provider and Alchemy credentials, purge Git history, apply and runtime-test migration `0011`, build isolated browser workers and evidence capture, implement organization-level tenancy and durable queue leases, finish quota/spend/retention/privacy controls, upgrade to a supported Next.js major, and complete a controlled pilot. The production deployment remains on the prior code until review and merge.
 
-The shared Drive workspace and live Helm product entry were prepared but could not be written because connected-service mutations were rejected after the Codex usage window was exhausted. The local tracker is at `.artifacts/sts-tracker/outputs/Swarm-Testing-Services-Production-Readiness-Tracker.xlsx`.
+The shared Drive workspace is complete at `https://drive.google.com/drive/folders/1L8vo_3Dc2uByJckieaiFlXPTaenyov91`: six organized folders contain five verified native Google Docs and the seven-tab production-readiness tracker (`https://docs.google.com/spreadsheets/d/1yQK14G9MWe25JwgxiO332gTDNT87w1409HECOZuF6IE`). The canonical Helm product was created and verified under IB Solutions with product ID `1e99e7e3-c53e-49c7-aa09-425b155f065d`. The reproducible local tracker is at `.artifacts/sts-tracker/outputs/Swarm-Testing-Services-Production-Readiness-Tracker.xlsx`.
 
 ---
 
