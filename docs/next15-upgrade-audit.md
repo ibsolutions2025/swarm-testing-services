@@ -1,7 +1,9 @@
 # Next.js 14 to 15 upgrade audit
 
-Audit date: 2026-07-16  
-Scope: documentation only; no application code or dependency changes  
+Audit date: 2026-07-16
+
+Scope: documentation only; no application code or dependency changes
+
 Target: latest Next.js 15 release, `15.5.20`, with React `19.2.7`
 
 ## Executive summary
