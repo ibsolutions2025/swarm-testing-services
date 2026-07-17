@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 import type { CampaignResults } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/campaigns/:id — return the full result bundle for one campaign:
  * campaign metadata, matrix, personas, runs, + summary counts.
@@ -10,9 +12,10 @@ import type { CampaignResults } from "@/lib/types";
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  ctx: { params: Promise<{ id: string }> }
 ) {
-  const supabase = createServerClient();
+  const params = await ctx.params;
+  const supabase = await createServerClient();
 
   const {
     data: { user }

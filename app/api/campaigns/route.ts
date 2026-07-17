@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/campaigns — list the authenticated user's campaigns, newest first.
  */
 export async function GET() {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   const {
     data: { user }

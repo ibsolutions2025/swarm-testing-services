@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { name: string } }
+  ctx: { params: Promise<{ name: string }> }
 ) {
+  const params = await ctx.params;
   const agent = await getAgent(params.name);
   if (!agent) {
     return NextResponse.json(

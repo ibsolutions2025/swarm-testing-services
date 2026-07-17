@@ -13,10 +13,11 @@ import { OnboardingStepper } from "@/components/OnboardingStepper";
 
 export const dynamic = "force-dynamic";
 
-type PageProps = { params: { runId: string } };
+type PageProps = { params: Promise<{ runId: string }> };
 
-export default async function HireRunPage({ params }: PageProps) {
-  const supabase = createServerClient();
+export default async function HireRunPage(props: PageProps) {
+  const params = await props.params;
+  const supabase = await createServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

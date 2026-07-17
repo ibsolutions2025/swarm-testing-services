@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 3) Sign the user in through the anon/server client so cookies are set.
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error: signInErr } = await supabase.auth.signInWithPassword({
     email,
     password
