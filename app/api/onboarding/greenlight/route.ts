@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   const runId = body.runId;
   if (!runId) return NextResponse.json({ error: "runId required" }, { status: 400 });
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
 

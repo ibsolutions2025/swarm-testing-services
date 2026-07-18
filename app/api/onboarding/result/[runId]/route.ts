@@ -18,15 +18,15 @@ import { createServerClient } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
-type RouteParams = { params: { runId: string } };
+type RouteParams = { params: Promise<{ runId: string }> };
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
-  const runId = params.runId;
+  const runId = (await params).runId;
   if (!runId || !/^[a-zA-Z0-9._-]+$/.test(runId)) {
     return NextResponse.json({ error: "invalid runId" }, { status: 400 });
   }
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -515,7 +515,6 @@ function getCellResults(
 // `scenario` retained for signature compatibility; the config.json-derived
 // review count was wrong (4 of 20 scenarios had submit-reviews defined,
 // disagreeing with the contract-driven invariant the scanner enforces).
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function validateResult(
   result: LifecycleResult,
   _scenario: Scenario

@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const runId = req.nextUrl.searchParams.get("run_id");
   if (!runId) return NextResponse.json({ error: "run_id is required" }, { status: 400 });
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -13,12 +13,11 @@ import type { Matrix, Persona, Run } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectDetailPage({
-  params
-}: {
-  params: { id: string };
+export default async function ProjectDetailPage(props: {
+  params: Promise<{ id: string }>;
 }) {
-  const supabase = createServerClient();
+  const params = await props.params;
+  const supabase = await createServerClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();

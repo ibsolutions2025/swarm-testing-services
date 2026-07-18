@@ -8,8 +8,8 @@ const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
  * Server-side Supabase client. Use inside route handlers, server
  * components, and server actions. Reads cookies for session.
  */
-export function createServerClient() {
-  const cookieStore = cookies();
+export async function createServerClient() {
+  const cookieStore = await cookies();
 
   return createSSRServerClient(URL, ANON_KEY, {
     cookies: {

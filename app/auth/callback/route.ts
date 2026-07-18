@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Magic-link redirect target.
  *
@@ -16,7 +18,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=missing_code", url));
   }
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {

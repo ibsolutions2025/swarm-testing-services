@@ -14,10 +14,11 @@ import { EditorTabs } from "./EditorTabs";
 
 export const dynamic = "force-dynamic";
 
-type PageProps = { params: { runId: string } };
+type PageProps = { params: Promise<{ runId: string }> };
 
-export default async function EditPage({ params }: PageProps) {
-  const supabase = createServerClient();
+export default async function EditPage(props: PageProps) {
+  const params = await props.params;
+  const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect(`/login?next=/hire/runs/${params.runId}/edit`);
 
